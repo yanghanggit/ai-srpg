@@ -36,7 +36,7 @@
 | [内容无关引擎（Content-Agnostic Engine）](wiki/content-agnostic-engine.md) | 蓝图是输入、引擎是机制执行器：结构词汇与题材词汇、机制与值、骨架与内容三条分界线；换故事的边界与防线 |
 | [空间模型（Spatial Model）](wiki/spatial-model.md) | 空间词汇的唯一来源：舞台、大地图、地点、区域、大地图格；树存储、图移动、地点占一格 |
 | [角色行为（Actor Actions）](wiki/actor-actions.md) | 大地图与地点内部两套动词：大地图不是场所、地点对外只占一格、一次位置变化说给三处听 |
-| [角色计划（Actor Plan）](wiki/actor-plan.md) | 角色一轮里的「想」：大地图与地点各有一个计划系统、上下文取哪一层、行为如何以工具表达、失败即轮空 |
+| [角色计划（Actor Plan）](wiki/actor-plan.md) | 角色一轮里的「想」：大地图与地点各有一个计划系统、上下文取哪一层、行为如何以工具表达、失败即轮空；接管与自主只共享模型可见的决策形状 |
 | [描述刷新（Description Refresh）](wiki/description-refresh.md) | 外观与环境两对「底稿/当前」：收集端的幂等守卫、主动强制重写、两种描述的尺度差异与失败出口 |
 | [状态改动的边界（State Change Boundary）](wiki/state-change-boundary.md) | 读写在架构上不对等：基建模块只放原语，改记忆与 ECS 只在 systems 的 mixin 里；四类例外与回滚，守卫靠命名约定 + 类型入口 |
 | [System 错误处理与回滚边界](wiki/system-error-handling.md) | system 何时可自行处理失败、何时必须上抛；整次 pass 的回滚粒度与 `StopPipeline` 的区别 |
