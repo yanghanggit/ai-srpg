@@ -21,9 +21,9 @@ from ai_srpg.models import (
     COMPONENT_TYPES,
     AgentMemoryStore,
     Blueprint,
-    GlobalStageComponent,
+    GridComponent,
     IdentityComponent,
-    Position,
+    MapPosition,
     StageBlueprint,
     StageComponent,
     create_component_type,
@@ -57,16 +57,16 @@ def _make_stage_model(name: str, component_name: str) -> StageBlueprint:
 
 ############################################################################################################
 def _build(game: Any, *stages: StageBlueprint) -> None:
-    """把若干舞台声明挂到一棵 5x5 的战场树下并构建。"""
+    """把若干舞台声明挂到一棵 5x5 的大地图树下并构建。"""
     root = StageBlueprint(
-        name="舞台.战场",
-        system_message="# 舞台.战场",
+        name="舞台.大地图",
+        system_message="# 舞台.大地图",
         components={
             StageComponent.__name__: {},
-            GlobalStageComponent.__name__: {"width": 5, "height": 5},
+            GridComponent.__name__: {"width": 5, "height": 5},
         },
         children=[
-            stage.model_copy(update={"position": Position(x=index, y=0)})
+            stage.model_copy(update={"map_position": MapPosition(x=index, y=0)})
             for index, stage in enumerate(stages)
         ],
     )

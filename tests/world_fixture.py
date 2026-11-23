@@ -1,7 +1,7 @@
-"""两层世界的最小夹具：一张 5x5 战役地图，一个据点（含一个内部区域），一名哨兵。
+"""两层世界的最小夹具：一张 5x5 大地图，一个地点（含一个内部区域），一名哨兵。
 
-据点 舞台.营地 在 (2,2)，它有子区域 舞台.火房；哨塔 在相邻的 (3,2)。
-角色.甲、角色.乙 在营地里，角色.丙 在哨塔里，角色.丁 站在地图 (1,1)。
+地点 舞台.营地 在 (2,2)，它有子区域 舞台.火房；哨塔 在相邻的 (3,2)。
+角色.甲、角色.乙 在营地里，角色.丙 在哨塔里，角色.丁 站在大地图 (1,1)。
 """
 
 from typing import Dict, List
@@ -19,14 +19,14 @@ from ai_srpg.models import (
     Blueprint,
     ChatMessage,
     EnvironmentComponent,
-    GlobalStageComponent,
-    Position,
-    PositionComponent,
+    GridComponent,
+    MapPosition,
+    MapPositionComponent,
     StageBlueprint,
     StageComponent,
 )
 
-BATTLEFIELD = "舞台.战场"
+MAP = "舞台.大地图"
 CAMP = "舞台.营地"
 FIRE_ROOM = "舞台.火房"
 TOWER = "舞台.哨塔"
@@ -51,11 +51,11 @@ def build_world(
             campaign_setting="设定",
             global_rules="规则",
             stage_tree=StageBlueprint(
-                name=BATTLEFIELD,
-                system_message=f"{BATTLEFIELD} 的设定",
+                name=MAP,
+                system_message=f"{MAP} 的设定",
                 components={
                     StageComponent.__name__: {},
-                    GlobalStageComponent.__name__: {"width": 5, "height": 5},
+                    GridComponent.__name__: {"width": 5, "height": 5},
                 },
                 children=[
                     StageBlueprint(
@@ -67,7 +67,7 @@ def build_world(
                                 "base_environment": CAMP_ENVIRONMENT
                             },
                         },
-                        position=Position(x=2, y=2),
+                        map_position=MapPosition(x=2, y=2),
                         children=[
                             StageBlueprint(
                                 name=FIRE_ROOM,
@@ -80,7 +80,7 @@ def build_world(
                         name=TOWER,
                         system_message=f"{TOWER} 的设定",
                         components={StageComponent.__name__: {}},
-                        position=Position(x=3, y=2),
+                        map_position=MapPosition(x=3, y=2),
                     ),
                 ],
             ),
@@ -88,7 +88,7 @@ def build_world(
                 _actor(HERE, CAMP),
                 _actor(OTHER, CAMP),
                 _actor(SENTRY, TOWER),
-                _actor(WANDERER, BATTLEFIELD, Position(x=1, y=1)),
+                _actor(WANDERER, MAP, MapPosition(x=1, y=1)),
             ],
             worlds=[],
         ),
@@ -121,20 +121,25 @@ def said(game: SRPGGame, name: str) -> List[str]:
     return [message.content for message in messages(game, name)]
 
 
-def _actor(name: str, stage: str, cell: Position | None = None) -> ActorBlueprint:
+def _actor(
+    name: str, stage: str, map_position: MapPosition | None = None
+) -> ActorBlueprint:
     components: Dict[str, Dict[str, object]] = {
         ActorComponent.__name__: {"current_stage": stage},
         AppearanceComponent.__name__: {"base_body": f"{name}的样子"},
     }
-    if cell is not None:
-        components[PositionComponent.__name__] = {"x": cell.x, "y": cell.y}
+    if map_position is not None:
+        components[MapPositionComponent.__name__] = {
+            "x": map_position.x,
+            "y": map_position.y,
+        }
     return ActorBlueprint(
         name=name, system_message=f"{name} 的设定", components=components
     )
 
 
 __all__ = [
-    "BATTLEFIELD",
+    "MAP",
     "CAMP",
     "CAMP_ENVIRONMENT",
     "FIRE_ROOM",

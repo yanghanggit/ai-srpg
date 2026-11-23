@@ -1,6 +1,6 @@
 """舞台心跳 system：发布链路与「第一段业务」的接线。
 
-覆盖四件事：每个有角色的局部舞台只广播一次、广播同时进入 agent 记忆、全局舞台
+覆盖四件事：每个有角色的区域只广播一次、广播同时进入 agent 记忆、大地图
 不参与、以及事件经 ``SessionEventSink`` 落进会话历史并带上当前 job 标识。
 """
 
@@ -16,7 +16,7 @@ from ai_srpg.game.systems.stage_pulse_system import StagePulseSystem
 from ai_srpg.gameplay.session_history import SessionEventSink
 from ai_srpg.models import (
     ActorComponent,
-    GlobalStageComponent,
+    GridComponent,
     SessionMessage,
     StageComponent,
 )
@@ -24,11 +24,20 @@ from ai_srpg.session.job_context import reset_current_job, set_current_job
 from ai_srpg.session.player_session import PlayerSession
 from ai_srpg.session.room import Room
 
-
 ###############################################################################
-def _make_stage(game: SRPGGame, name: str) -> Entity:
+_MAP_STAGE = "舞台.大地图"
+
+
+def _make_stage(
+    game: SRPGGame, name: str, *, parent_stage: str | None = _MAP_STAGE
+) -> Entity:
+    """创建舞台实体；默认当作地点挂在测试大地图下。"""
+    if parent_stage == _MAP_STAGE and game.get_entity_by_name(_MAP_STAGE) is None:
+        map_entity: Entity = game.create_entity(_MAP_STAGE)
+        map_entity.add(StageComponent, None)
+        map_entity.add(GridComponent, 5, 5)
     entity: Entity = game.create_entity(name)
-    entity.add(StageComponent, None)
+    entity.add(StageComponent, parent_stage)
     return entity
 
 
@@ -104,17 +113,17 @@ async def test_broadcast_reaches_stage_and_actors_memory() -> None:
     assert get_agent_memory(game, actor).messages[-1].content.startswith("舞台.营地：")
 
 
-async def test_global_stage_is_never_broadcast() -> None:
-    """全局舞台没有「在场者」，即使站着角色也不发局部广播。"""
+async def test_map_stage_is_never_broadcast() -> None:
+    """大地图没有「在场者」，即使站着角色也不发区域广播。"""
     game = create_srpg_game(name="Game1", events=RecordingEventSink())
-    battlefield = _make_stage(game, "舞台.战场")
-    battlefield.add(GlobalStageComponent, 5, 5)
-    _make_actor(game, "角色.游荡者", "舞台.战场")
+    map_stage = _make_stage(game, "舞台.大地图", parent_stage=None)
+    map_stage.add(GridComponent, 5, 5)
+    _make_actor(game, "角色.游荡者", "舞台.大地图")
 
     await StagePulseSystem(game).execute()
 
     assert game.events.events == []  # type: ignore[attr-defined]
-    assert get_agent_memory(game, battlefield).messages == []
+    assert get_agent_memory(game, map_stage).messages == []
 
 
 ###############################################################################

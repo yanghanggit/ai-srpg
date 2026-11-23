@@ -6,7 +6,7 @@
 
 from typing import Optional, final
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 
 from ..entitas.components import Component
 from .registry import register_component_type
@@ -33,7 +33,7 @@ class WorldComponent(Component):
 @final
 @register_component_type
 class StageComponent(Component):
-    """标记实体为舞台（角色可停留的地点），记录挂在哪个舞台之下。"""
+    """标记实体为舞台（空间单位），记录挂在哪个舞台之下。"""
 
     parent_stage: Optional[str] = None  # 树上层的舞台；根为 None
 
@@ -41,21 +41,28 @@ class StageComponent(Component):
 ############################################################################################################
 @final
 @register_component_type
-class GlobalStageComponent(Component):
-    """标记实体为全局舞台：舞台树的根，自带一片网格坐标系。"""
+class GridComponent(Component):
+    """舞台的网格坐标系：左上角为原点，``x ∈ [0, width)``、``y ∈ [0, height)``。
 
-    width: int
-    height: int
+    网格属于大地图；地点占据其中一个格子，地点内部是一张图、没有坐标。
+    """
+
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+
+    def contains(self, x: int, y: int) -> bool:
+        """这一格是否落在网格内。"""
+        return 0 <= x < self.width and 0 <= y < self.height
 
 
 ############################################################################################################
 @final
 @register_component_type
-class PositionComponent(Component):
-    """在所属舞台网格上的格子坐标（左上角为原点）。"""
+class MapPositionComponent(Component):
+    """在大地图网格上的格子坐标（左上角为原点）：地点与站在大地图上的角色都用它。"""
 
-    x: int
-    y: int
+    x: int = Field(ge=0)
+    y: int = Field(ge=0)
 
 
 ############################################################################################################
@@ -131,11 +138,11 @@ __all__ = [
     "AppearanceComponent",
     "DestroyComponent",
     "EnvironmentComponent",
-    "GlobalStageComponent",
+    "GridComponent",
     "IdentityComponent",
+    "MapPositionComponent",
     "NPCComponent",
     "PlayerComponent",
-    "PositionComponent",
     "StageComponent",
     "WorldComponent",
 ]

@@ -4,8 +4,8 @@
 声明类把类别写在类型上——装配期据此要求实体带对了标记组件，运行期的行为差异全部由
 组件承担，因此这里没有类别枚举。
 
-舞台是一棵树：根是全局舞台（自带网格），孩子按父舞台的格子摆放；角色仍然只属于某一个
-舞台节点。名字里用 ``.`` 分隔只是给人看的，引擎不做任何拆分或推断。
+舞台按树存储：根是大地图（自带网格），直接子舞台是地点，地点内部是图；角色仍然只属于
+某一个舞台。名字里用 ``.`` 分隔只是给人看的，引擎不做任何拆分或推断。
 """
 
 from typing import Dict, Iterator, List, Optional, Tuple, final
@@ -17,8 +17,8 @@ from ..entitas import EntityData
 
 ###############################################################################################################################################
 @final
-class Position(BaseModel):
-    """父舞台网格上的格子坐标（左上角为原点）。"""
+class MapPosition(BaseModel):
+    """大地图上的格子坐标（左上角为原点）。"""
 
     x: int = Field(ge=0)
     y: int = Field(ge=0)
@@ -49,8 +49,8 @@ class StageBlueprint(BaseModel):
         default_factory=dict
     )  # 资源键（业务层约定）-> meta 路径（.assets/image/<file>.meta）
 
-    # 在父舞台网格上的位置；父舞台没有网格时留空
-    position: Optional[Position] = None
+    # 地点在大地图上的位置；大地图本身与地点内部的区域都不需要
+    map_position: Optional[MapPosition] = None
 
     children: List["StageBlueprint"] = Field(default_factory=list)
 
@@ -87,7 +87,7 @@ class Blueprint(BaseModel):
 def walk_stages(
     stage_tree: StageBlueprint, parent: Optional[str] = None
 ) -> Iterator[Tuple[StageBlueprint, Optional[str]]]:
-    """按先序产出 (舞台声明, 父舞台名)；根节点的父舞台名为 ``None``。"""
+    """按先序产出 (舞台声明, 父舞台名)；大地图的父舞台名为 ``None``。"""
     yield stage_tree, parent
     for child in stage_tree.children:
         yield from walk_stages(child, stage_tree.name)
@@ -97,7 +97,7 @@ def walk_stages(
 __all__ = [
     "ActorBlueprint",
     "Blueprint",
-    "Position",
+    "MapPosition",
     "StageBlueprint",
     "WorldBlueprint",
     "walk_stages",

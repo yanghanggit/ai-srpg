@@ -1,15 +1,15 @@
 """位置变化的告知：旧处看见他走、新处看见他来、他自己记得这条路线。
 
 调用顺序即语义：离开按「此刻所在处」投递，必须在改组件之前发；到达按「新的所在处」，
-之后发。地图与据点的投递对象不同——地图只记在自己身上。
+之后发。大地图与地点的投递对象不同——大地图只记在自己身上。
 
 三处听到的说法不同，但它们是同一件事：所以传进来的是那条领域事件，这里只把它的
 说法换成该听众该听到的那一版。事件本身由调用方发布一次。
 """
 
 from ...entitas import Entity
-from ...models import AnyAgentEvent, GlobalStageComponent, HumanMessage
-from ..entities.queries import get_cell, resolve_stage_entity
+from ...models import AnyAgentEvent, HumanMessage
+from ..entities.queries import get_map_position, is_map_stage, resolve_stage_entity
 from ..memory import add_human_message
 from .stage_broadcast_mixin import StageBroadcastMixin
 
@@ -22,13 +22,13 @@ class LocationChangeMixin(StageBroadcastMixin):
         self,
         entity: Entity,
         *,
-        location: Entity,
+        stage: Entity,
         from_label: str,
         agent_event: AnyAgentEvent,
     ) -> None:
         """旧处的在场者看见他离开；调用时角色还在原地。"""
-        self.broadcast_at_location(
-            location,
+        self.broadcast_at_stage(
+            stage,
             _saying(agent_event, f"{entity.name}离开了{from_label}。"),
             exclude_entities={entity},
         )
@@ -38,13 +38,13 @@ class LocationChangeMixin(StageBroadcastMixin):
         self,
         entity: Entity,
         *,
-        location: Entity,
+        stage: Entity,
         to_label: str,
         agent_event: AnyAgentEvent,
     ) -> None:
         """新处的在场者看见他到来；调用时组件已经改好。"""
-        self.broadcast_at_location(
-            location,
+        self.broadcast_at_stage(
+            stage,
             _saying(agent_event, f"{entity.name}来到了{to_label}。"),
             exclude_entities={entity},
         )
@@ -70,13 +70,13 @@ class LocationChangeMixin(StageBroadcastMixin):
 
     ############################################################################################################
     def map_label(self, entity: Entity) -> str:
-        """地图上的位置说法：「全局舞台(x,y)」；据点里用区域名。"""
+        """大地图上的位置说法：「大地图(x,y)」；地点内部用区域名。"""
         stage_entity = resolve_stage_entity(self._game, entity)
         assert stage_entity is not None, f"{entity.name} 无所在舞台"
-        if not stage_entity.has(GlobalStageComponent):
+        if not is_map_stage(stage_entity):
             return stage_entity.name
-        _, (x, y) = get_cell(self._game, entity)
-        return f"{stage_entity.name}({x},{y})"
+        map_stage, position = get_map_position(self._game, entity)
+        return f"{map_stage.name}({position.x},{position.y})"
 
 
 ###############################################################################

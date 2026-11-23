@@ -83,36 +83,36 @@ class ActorSpeakAction(Component):
 @register_action_component_type
 @register_component_type
 class ActorTravelAction(Component):
-    """动作：本轮该角色在战场上移动到相邻一格（不改变所在层）。"""
+    """动作：本轮该角色在大地图上移动到相邻一格（不改变所在层）。"""
 
-    cell_x: int
-    cell_y: int
-
-
-############################################################################################################
-@final
-@register_action_component_type
-@register_component_type
-class ActorEnterStageAction(Component):
-    """动作：本轮该角色从格子走进那一格上的据点。"""
-
-    stage_name: str
+    x: int
+    y: int
 
 
 ############################################################################################################
 @final
 @register_action_component_type
 @register_component_type
-class ActorExitStageAction(Component):
-    """动作：本轮该角色离开所在据点，回到战场上据点所在的那一格。"""
+class ActorEnterSiteAction(Component):
+    """动作：本轮该角色从格子走进那一格上的地点。"""
+
+    site: str
 
 
 ############################################################################################################
 @final
 @register_action_component_type
 @register_component_type
-class ActorMoveWithinStageAction(Component):
-    """动作：本轮该角色在据点内部移动到一个相邻的区域。"""
+class ActorExitSiteAction(Component):
+    """动作：本轮该角色离开所在地点，回到大地图上地点所在的那一格。"""
+
+
+############################################################################################################
+@final
+@register_action_component_type
+@register_component_type
+class ActorMoveWithinSiteAction(Component):
+    """动作：本轮该角色在地点内部移动到一个相邻的区域。"""
 
     destination: str
 
@@ -141,9 +141,9 @@ class CompactMemoryAction(Component):
 ############################################################################################################
 __all__ = [
     "ACTION_COMPONENT_TYPES",
-    "ActorEnterStageAction",
-    "ActorExitStageAction",
-    "ActorMoveWithinStageAction",
+    "ActorEnterSiteAction",
+    "ActorExitSiteAction",
+    "ActorMoveWithinSiteAction",
     "ActorPlanAction",
     "ActorSpeakAction",
     "ActorTravelAction",

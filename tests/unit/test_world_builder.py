@@ -21,9 +21,9 @@ from ai_srpg.models import (
     AppearanceComponent,
     Blueprint,
     EnvironmentComponent,
-    GlobalStageComponent,
-    Position,
-    PositionComponent,
+    GridComponent,
+    MapPosition,
+    MapPositionComponent,
     StageBlueprint,
     StageComponent,
     WorldBlueprint,
@@ -42,16 +42,16 @@ def _world() -> WorldBlueprint:
     )
 
 
-def _battlefield(
+def _map_stage(
     *,
     components: Optional[Dict[str, Dict[str, Any]]] = None,
     children: Optional[List[StageBlueprint]] = None,
 ) -> StageBlueprint:
     return StageBlueprint(
-        name="舞台.战场",
-        system_message="舞台.战场 的设定",
+        name="舞台.大地图",
+        system_message="舞台.大地图 的设定",
         components=(
-            {StageComponent.__name__: {}, GlobalStageComponent.__name__: dict(GRID)}
+            {StageComponent.__name__: {}, GridComponent.__name__: dict(GRID)}
             if components is None
             else components
         ),
@@ -60,13 +60,13 @@ def _battlefield(
 
 
 def _camp(
-    position: Optional[Position] = None, *, name: str = "舞台.营地"
+    map_position: Optional[MapPosition] = None, *, name: str = "舞台.营地"
 ) -> StageBlueprint:
     return StageBlueprint(
         name=name,
         system_message=f"{name} 的设定",
         components={StageComponent.__name__: {}},
-        position=position,
+        map_position=map_position,
     )
 
 
@@ -85,7 +85,7 @@ def _blueprint(
         stage_tree=(
             root
             if root is not None
-            else _battlefield(children=[_camp(Position(x=2, y=2))])
+            else _map_stage(children=[_camp(MapPosition(x=2, y=2))])
         ),
         actors=(
             actors
@@ -151,20 +151,20 @@ def test_environment_narrative_defaults_to_base_environment() -> None:
     build_from_blueprint(
         game,
         _blueprint(
-            root=_battlefield(
+            root=_map_stage(
                 components={
                     StageComponent.__name__: {},
-                    GlobalStageComponent.__name__: dict(GRID),
+                    GridComponent.__name__: dict(GRID),
                     EnvironmentComponent.__name__: {"base_environment": "湿冷，风很大"},
                 },
-                children=[_camp(Position(x=2, y=2))],
+                children=[_camp(MapPosition(x=2, y=2))],
             )
         ),
     )
 
-    battlefield = get_stage_entity(game, "舞台.战场")
-    assert battlefield is not None
-    environment = battlefield.get(EnvironmentComponent)
+    map_stage = get_stage_entity(game, "舞台.大地图")
+    assert map_stage is not None
+    environment = map_stage.get(EnvironmentComponent)
     assert environment.narrative == environment.base_environment == "湿冷，风很大"
 
 
@@ -175,40 +175,40 @@ def test_given_environment_narrative_is_kept() -> None:
     build_from_blueprint(
         game,
         _blueprint(
-            root=_battlefield(
+            root=_map_stage(
                 components={
                     StageComponent.__name__: {},
-                    GlobalStageComponent.__name__: dict(GRID),
+                    GridComponent.__name__: dict(GRID),
                     EnvironmentComponent.__name__: {
                         "base_environment": "湿冷，风很大",
                         "narrative": "火堆被雨浇灭了",
                     },
                 },
-                children=[_camp(Position(x=2, y=2))],
+                children=[_camp(MapPosition(x=2, y=2))],
             )
         ),
     )
 
-    battlefield = get_stage_entity(game, "舞台.战场")
-    assert battlefield is not None
-    environment = battlefield.get(EnvironmentComponent)
+    map_stage = get_stage_entity(game, "舞台.大地图")
+    assert map_stage is not None
+    environment = map_stage.get(EnvironmentComponent)
     assert environment.narrative == "火堆被雨浇灭了"
     assert environment.base_environment == "湿冷，风很大"
 
 
 ###############################################################################
-def test_stage_tree_sets_parent_and_position() -> None:
-    """父子关系由嵌套决定，坐标由蓝图落成 ``PositionComponent``。"""
+def test_stage_tree_sets_parent_and_map_position() -> None:
+    """父子关系由嵌套决定，坐标由蓝图落成 ``MapPositionComponent``。"""
     game = create_srpg_game(name="BuildTest")
     build_from_blueprint(game, _blueprint())
 
-    battlefield = get_stage_entity(game, "舞台.战场")
+    map_stage = get_stage_entity(game, "舞台.大地图")
     camp = get_stage_entity(game, "舞台.营地")
-    assert battlefield is not None and camp is not None
-    assert battlefield.get(StageComponent).parent_stage is None
-    assert battlefield.get(GlobalStageComponent).width == 5
-    assert camp.get(StageComponent).parent_stage == "舞台.战场"
-    position = camp.get(PositionComponent)
+    assert map_stage is not None and camp is not None
+    assert map_stage.get(StageComponent).parent_stage is None
+    assert map_stage.get(GridComponent).width == 5
+    assert camp.get(StageComponent).parent_stage == "舞台.大地图"
+    position = camp.get(MapPositionComponent)
     assert (position.x, position.y) == (2, 2)
 
 
@@ -235,57 +235,66 @@ def test_missing_stage_marker_is_rejected() -> None:
         build_from_blueprint(
             game,
             _blueprint(
-                root=_battlefield(
-                    components={GlobalStageComponent.__name__: dict(GRID)}
-                )
+                root=_map_stage(components={GridComponent.__name__: dict(GRID)})
             ),
         )
 
 
 ###############################################################################
-def test_root_stage_must_be_global() -> None:
-    """舞台树的根必须是全局舞台——否则整棵树没有坐标系。"""
+def test_root_stage_must_have_grid() -> None:
+    """舞台树的根是大地图，必须带网格——否则整棵树没有坐标系。"""
     game = create_srpg_game(name="BuildTest")
     root = StageBlueprint(
-        name="舞台.战场",
-        system_message="舞台.战场 的设定",
+        name="舞台.大地图",
+        system_message="舞台.大地图 的设定",
         components={StageComponent.__name__: {}},
     )
 
-    with pytest.raises(AssertionError, match="根舞台必须是全局舞台"):
+    with pytest.raises(AssertionError, match="必须带网格"):
         build_from_blueprint(game, _blueprint(root=root))
 
 
 ###############################################################################
-def test_only_the_root_stage_may_be_global() -> None:
-    """全局舞台只能有一个，且只能是根。"""
+def test_only_the_root_stage_may_have_grid() -> None:
+    """网格只能有一个，且只能在大地图（根）上。"""
     game = create_srpg_game(name="BuildTest")
     child = StageBlueprint(
         name="舞台.营地",
         system_message="舞台.营地 的设定",
         components={
             StageComponent.__name__: {},
-            GlobalStageComponent.__name__: dict(GRID),
+            GridComponent.__name__: dict(GRID),
         },
-        position=Position(x=0, y=0),
+        map_position=MapPosition(x=0, y=0),
     )
 
-    with pytest.raises(AssertionError, match="只有根舞台可以是全局舞台"):
+    with pytest.raises(AssertionError, match="只有大地图"):
         build_from_blueprint(
             game,
-            _blueprint(root=_battlefield(children=[child])),
+            _blueprint(root=_map_stage(children=[child])),
         )
 
 
 ###############################################################################
-def test_child_stage_needs_a_position() -> None:
+def test_root_stage_has_no_map_position() -> None:
+    """大地图是坐标系本身，不能被摆在某个格子上。"""
+    game = create_srpg_game(name="BuildTest")
+    root = _map_stage()
+    root.map_position = MapPosition(x=0, y=0)
+
+    with pytest.raises(AssertionError, match="没有大地图位置"):
+        build_from_blueprint(game, _blueprint(root=root))
+
+
+###############################################################################
+def test_child_stage_needs_a_map_position() -> None:
     """父舞台有网格时，子舞台必须说明自己在哪一格。"""
     game = create_srpg_game(name="BuildTest")
 
-    with pytest.raises(AssertionError, match="没有位置"):
+    with pytest.raises(AssertionError, match="必须声明"):
         build_from_blueprint(
             game,
-            _blueprint(root=_battlefield(children=[_camp()])),
+            _blueprint(root=_map_stage(children=[_camp()])),
         )
 
 
@@ -297,7 +306,7 @@ def test_child_stage_must_fit_in_the_grid() -> None:
     with pytest.raises(AssertionError, match="超出"):
         build_from_blueprint(
             game,
-            _blueprint(root=_battlefield(children=[_camp(Position(x=5, y=0))])),
+            _blueprint(root=_map_stage(children=[_camp(MapPosition(x=5, y=0))])),
         )
 
 
@@ -305,10 +314,10 @@ def test_child_stage_must_fit_in_the_grid() -> None:
 def test_two_children_cannot_share_a_cell() -> None:
     """一格一物：同一父舞台下坐标不得重复。"""
     game = create_srpg_game(name="BuildTest")
-    root = _battlefield(
+    root = _map_stage(
         children=[
-            _camp(Position(x=1, y=1), name="舞台.营地"),
-            _camp(Position(x=1, y=1), name="舞台.哨站"),
+            _camp(MapPosition(x=1, y=1), name="舞台.营地"),
+            _camp(MapPosition(x=1, y=1), name="舞台.哨站"),
         ]
     )
 
@@ -317,16 +326,16 @@ def test_two_children_cannot_share_a_cell() -> None:
 
 
 ###############################################################################
-def test_position_without_grid_parent_is_rejected() -> None:
+def test_map_position_without_grid_parent_is_rejected() -> None:
     """父舞台没有网格，子舞台的位置就没有意义，别让它悄悄失效。"""
     game = create_srpg_game(name="BuildTest")
-    settlement = _camp(Position(x=2, y=2), name="舞台.营地")
-    settlement.children = [_camp(Position(x=0, y=0), name="舞台.铁匠铺")]
+    site = _camp(MapPosition(x=2, y=2), name="舞台.营地")
+    site.children = [_camp(MapPosition(x=0, y=0), name="舞台.铁匠铺")]
 
     with pytest.raises(AssertionError, match="没有网格"):
         build_from_blueprint(
             game,
-            _blueprint(root=_battlefield(children=[settlement])),
+            _blueprint(root=_map_stage(children=[site])),
         )
 
 
@@ -369,7 +378,7 @@ def test_actor_on_undeclared_stage_is_rejected() -> None:
 def test_prompt_must_contain_entity_name() -> None:
     """实体全名是路由契约，system_message 里缺了它就是内容写错。"""
     game = create_srpg_game(name="BuildTest")
-    root = _battlefield(children=[_camp(Position(x=2, y=2))])
+    root = _map_stage(children=[_camp(MapPosition(x=2, y=2))])
     root.system_message = "少了名字的设定"
 
     with pytest.raises(AssertionError, match="系统消息缺少实体名"):

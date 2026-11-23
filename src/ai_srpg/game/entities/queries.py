@@ -7,9 +7,10 @@ from ...models import (
     ActorComponent,
     ActorSummary,
     AppearanceComponent,
-    GlobalStageComponent,
+    GridComponent,
+    MapPosition,
+    MapPositionComponent,
     PlayerComponent,
-    PositionComponent,
     StageComponent,
     WorldComponent,
 )
@@ -99,143 +100,152 @@ def list_actor_summaries(srpg_game: SRPGGame) -> List[ActorSummary]:
     return summaries
 
 
-class Cell(NamedTuple):
-    """战场上的一格：坐标、格上的据点（如果有）、站在格上的角色。
+class MapCell(NamedTuple):
+    """大地图上的一格：坐标、格上的地点（如果有）、站在格上的角色。
 
-    据点与站在格上的角色是平级的：一格可以只有空地，可以有据点，也可以有人就站在
-    据点所在的那一格（兵临城下）。
+    地点与站在格上的角色是平级的：一格可以只有空地，可以有地点，也可以有人就站在
+    地点所在的那一格。
     """
 
     x: int
     y: int
-    stage: Optional[str] = None
+    site: Optional[str] = None
     actors: Tuple[str, ...] = ()
 
 
 ############################################################################################################
-def get_global_stage(srpg_game: SRPGGame, stage_name: str) -> Entity:
-    """沿父链上溯到全局舞台（舞台树的根，自带网格）。"""
+def is_map_stage(stage_entity: Entity) -> bool:
+    """这个舞台是不是大地图：舞台树的根，没有父舞台。"""
+    return stage_entity.get(StageComponent).parent_stage is None
+
+
+def get_map_stage(srpg_game: SRPGGame, stage_name: str) -> Entity:
+    """沿父链上溯到大地图（舞台树的根，自带网格）。"""
     entity = get_stage_entity(srpg_game, stage_name)
     assert entity is not None, f"找不到舞台实体: {stage_name}"
-    while not entity.has(GlobalStageComponent):
+    while True:
         parent_name = entity.get(StageComponent).parent_stage
-        assert parent_name is not None, f"{entity.name} 不在任何全局舞台之下"
+        if parent_name is None:
+            return entity
         parent = get_stage_entity(srpg_game, parent_name)
         assert parent is not None, f"{entity.name} 的父舞台不存在: {parent_name}"
         entity = parent
-    return entity
 
 
 def is_on_map(srpg_game: SRPGGame, entity: Entity) -> bool:
-    """这个实体是否站在战役地图上（而不是某个据点内部）。"""
+    """这个实体是否站在大地图上（而不是某个地点内部）。"""
     stage_entity = resolve_stage_entity(srpg_game, entity)
     assert stage_entity is not None, f"{entity.name} 无所在舞台"
-    return stage_entity.has(GlobalStageComponent)
+    return is_map_stage(stage_entity)
 
 
-def get_settlement(srpg_game: SRPGGame, entity: Entity) -> Optional[Entity]:
-    """实体所属的据点：据点对外只是一个节点，就是全局舞台的直接子舞台。
+def get_site(srpg_game: SRPGGame, entity: Entity) -> Optional[Entity]:
+    """实体所属的地点：大地图的直接子舞台，对外只占一格。
 
-    站在地图上返回 ``None``；无论在里面走到多深，返回的都是同一个据点根。
+    站在大地图上返回 ``None``；无论在里面走到多深，返回的都是同一个地点。
     """
     stage_entity = resolve_stage_entity(srpg_game, entity)
     assert stage_entity is not None, f"{entity.name} 无所在舞台"
-    if stage_entity.has(GlobalStageComponent):
+    if is_map_stage(stage_entity):
         return None
     node = stage_entity
     while True:
         parent_name = node.get(StageComponent).parent_stage
-        assert parent_name is not None, f"{node.name} 不在任何全局舞台之下"
+        assert parent_name is not None, f"{node.name} 不在任何大地图之下"
         parent = get_stage_entity(srpg_game, parent_name)
         assert parent is not None, f"{node.name} 的父舞台不存在: {parent_name}"
-        if parent.has(GlobalStageComponent):
+        if is_map_stage(parent):
             return node
         node = parent
 
 
-def get_cell(srpg_game: SRPGGame, entity: Entity) -> Tuple[Entity, Tuple[int, int]]:
-    """实体在战役地图上的位置：站在地图上用自己的坐标，在据点里用据点所在的格。"""
-    if entity.has(PositionComponent):
-        position = entity.get(PositionComponent)
-        return _global_stage_of_entity(srpg_game, entity), (position.x, position.y)
+def get_map_position(srpg_game: SRPGGame, entity: Entity) -> Tuple[Entity, MapPosition]:
+    """实体在大地图上的位置：站在图上用自己的坐标，在地点里用地点所在的格。"""
+    if entity.has(MapPositionComponent):
+        position = entity.get(MapPositionComponent)
+        return _map_stage_of_entity(srpg_game, entity), MapPosition(
+            x=position.x, y=position.y
+        )
 
-    settlement = get_settlement(srpg_game, entity)
-    assert settlement is not None, f"{entity.name} 站在地图上，却没有格子坐标"
-    position = settlement.get(PositionComponent)
-    global_stage = get_global_stage(srpg_game, settlement.name)
-    return global_stage, (position.x, position.y)
+    site = get_site(srpg_game, entity)
+    assert site is not None, f"{entity.name} 站在大地图上，却没有格子坐标"
+    assert site.has(MapPositionComponent), f"{site.name} 在大地图上没有坐标"
+    position = site.get(MapPositionComponent)
+    return get_map_stage(srpg_game, site.name), MapPosition(x=position.x, y=position.y)
 
 
-def get_map_cells(srpg_game: SRPGGame, entity: Entity) -> List[Cell]:
-    """地图上的相邻格；斜向也算相邻，与广播的距离口径一致。
+def get_visible_cells(srpg_game: SRPGGame, entity: Entity) -> List[MapCell]:
+    """大地图视野内的格：脚下与相邻八格，斜向也算相邻。
 
-    包含实体自己所在的那一格——「脚下有什么」决定能不能进城。
+    与广播的距离口径一致；包含脚下那一格——「脚下有什么」决定能不能进入地点。
     """
-    global_stage, (x, y) = get_cell(srpg_game, entity)
-    grid = global_stage.get(GlobalStageComponent)
+    map_stage, position = get_map_position(srpg_game, entity)
+    x, y = position.x, position.y
+    grid = map_stage.get(GridComponent)
 
     by_cell: Dict[Tuple[int, int], Dict[str, object]] = {}
-    for child in get_child_stages(srpg_game, global_stage.name):
-        if not child.has(PositionComponent):
+    for child in get_child_stages(srpg_game, map_stage.name):
+        if not child.has(MapPositionComponent):
             continue
-        position = child.get(PositionComponent)
-        by_cell.setdefault((position.x, position.y), {})["stage"] = child.name
+        child_position = child.get(MapPositionComponent)
+        by_cell.setdefault((child_position.x, child_position.y), {})[
+            "site"
+        ] = child.name
 
-    for actor in get_actors_in_stage(srpg_game, global_stage):
-        if not actor.has(PositionComponent) or actor.index == entity.index:
+    for actor in get_actors_in_stage(srpg_game, map_stage):
+        if not actor.has(MapPositionComponent) or actor.index == entity.index:
             continue
-        position = actor.get(PositionComponent)
-        entry = by_cell.setdefault((position.x, position.y), {})
+        actor_position = actor.get(MapPositionComponent)
+        entry = by_cell.setdefault((actor_position.x, actor_position.y), {})
         entry["actors"] = (*_actors_of(entry), actor.name)
 
-    cells: List[Cell] = []
+    cells: List[MapCell] = []
     for dx in (-1, 0, 1):
         for dy in (-1, 0, 1):
             nx, ny = x + dx, y + dy
-            if not (0 <= nx < grid.width and 0 <= ny < grid.height):
+            if not grid.contains(nx, ny):
                 continue
             entry = by_cell.get((nx, ny), {})
             cells.append(
-                Cell(
+                MapCell(
                     x=nx,
                     y=ny,
-                    stage=entry.get("stage"),  # type: ignore[arg-type]
+                    site=entry.get("site"),  # type: ignore[arg-type]
                     actors=entry.get("actors", ()),  # type: ignore[arg-type]
                 )
             )
     return sorted(cells)
 
 
-def get_adjacent_stages(srpg_game: SRPGGame, entity: Entity) -> List[Entity]:
-    """据点内部的可去区域：子区域与父区域。
+def get_adjacent_regions(srpg_game: SRPGGame, entity: Entity) -> List[Entity]:
+    """地点内部的可去区域：子区域与父区域。
 
-    父区域是全局舞台时不在此列——那是「出城」，不是城内移动。
+    地点内部是一张图，父子之间的边双向可走；父区域是大地图时不在此列——
+    那是离开地点，不是区域内移动。
     """
     stage_entity = resolve_stage_entity(srpg_game, entity)
     assert stage_entity is not None, f"{entity.name} 无所在舞台"
-    assert not stage_entity.has(
-        GlobalStageComponent
-    ), f"{entity.name} 站在地图上，没有城内可去的区域"
+    assert not is_map_stage(stage_entity), f"{entity.name} 站在大地图上，没有可去的区域"
 
     found = list(get_child_stages(srpg_game, stage_entity.name))
     parent_name = stage_entity.get(StageComponent).parent_stage
-    assert parent_name is not None, f"{stage_entity.name} 不在任何全局舞台之下"
+    assert parent_name is not None, f"{stage_entity.name} 不在任何大地图之下"
     parent = get_stage_entity(srpg_game, parent_name)
     assert parent is not None, f"{stage_entity.name} 的父舞台不存在: {parent_name}"
-    if not parent.has(GlobalStageComponent):
+    if not is_map_stage(parent):
         found.append(parent)
     return found
 
 
-def get_stage_at_cell(
-    srpg_game: SRPGGame, global_stage: Entity, cell: Tuple[int, int]
+def get_site_at_cell(
+    srpg_game: SRPGGame, map_stage: Entity, position: MapPosition
 ) -> Optional[Entity]:
-    """某一格上的据点；空地上没有据点。"""
-    for child in get_child_stages(srpg_game, global_stage.name):
-        if not child.has(PositionComponent):
+    """某一格上的地点；空地上没有地点。"""
+    for child in get_child_stages(srpg_game, map_stage.name):
+        if not child.has(MapPositionComponent):
             continue
-        position = child.get(PositionComponent)
-        if (position.x, position.y) == cell:
+        child_position = child.get(MapPositionComponent)
+        if (child_position.x, child_position.y) == (position.x, position.y):
             return child
     return None
 
@@ -247,11 +257,11 @@ def _actors_of(entry: Dict[str, object]) -> Tuple[str, ...]:
     return actors
 
 
-def _global_stage_of_entity(srpg_game: SRPGGame, entity: Entity) -> Entity:
-    """实体所在的全局舞台（角色站在空地上时，它的所在舞台就是全局舞台）。"""
+def _map_stage_of_entity(srpg_game: SRPGGame, entity: Entity) -> Entity:
+    """实体所在的大地图（角色站在空地上时，它的所在舞台就是大地图）。"""
     stage_entity = resolve_stage_entity(srpg_game, entity)
     assert stage_entity is not None, f"{entity.name} 无所在舞台"
-    return get_global_stage(srpg_game, stage_entity.name)
+    return get_map_stage(srpg_game, stage_entity.name)
 
 
 def get_child_stages(srpg_game: SRPGGame, stage_name: str) -> List[Entity]:

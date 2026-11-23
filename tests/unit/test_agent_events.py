@@ -7,22 +7,22 @@ from pydantic import TypeAdapter, ValidationError
 
 from ai_srpg.game.context import SRPGGame
 from ai_srpg.game.events.sink import RecordingEventSink
-from ai_srpg.game.systems.actor_enter_stage_system import ActorEnterStageSystem
-from ai_srpg.game.systems.actor_exit_stage_system import ActorExitStageSystem
-from ai_srpg.game.systems.actor_move_within_stage_system import (
-    ActorMoveWithinStageSystem,
+from ai_srpg.game.systems.actor_enter_site_system import ActorEnterSiteSystem
+from ai_srpg.game.systems.actor_exit_site_system import ActorExitSiteSystem
+from ai_srpg.game.systems.actor_move_within_site_system import (
+    ActorMoveWithinSiteSystem,
 )
 from ai_srpg.game.systems.actor_speak_system import ActorSpeakSystem
 from ai_srpg.game.systems.actor_travel_system import ActorTravelSystem
 from ai_srpg.game.systems.actor_wait_system import ActorWaitSystem
 from ai_srpg.game.systems.stage_pulse_system import StagePulseSystem
 from ai_srpg.models import (
-    ActorEnteredStage,
-    ActorEnterStageAction,
-    ActorExitedStage,
-    ActorExitStageAction,
-    ActorMovedWithinStage,
-    ActorMoveWithinStageAction,
+    ActorEnteredSite,
+    ActorEnterSiteAction,
+    ActorExitedSite,
+    ActorExitSiteAction,
+    ActorMovedWithinSite,
+    ActorMoveWithinSiteAction,
     ActorSpeakAction,
     ActorSpoke,
     ActorTravelAction,
@@ -30,15 +30,15 @@ from ai_srpg.models import (
     ActorWaitAction,
     ActorWaited,
     AnyAgentEvent,
+    MapPositionComponent,
     NoneEvent,
-    PositionComponent,
     StagePulse,
 )
 from world_fixture import (
-    BATTLEFIELD,
     CAMP,
     FIRE_ROOM,
     HERE,
+    MAP,
     OTHER,
     TOWER,
     WANDERER,
@@ -75,14 +75,12 @@ def test_events_round_trip_through_the_union() -> None:
     """每种事件都能按 type 判别解析回自己，字段不丢。"""
     events: List[Any] = [
         StagePulse(message="在场", stage=CAMP, actors=(HERE, OTHER)),
-        ActorSpoke(message="说了", actor=HERE, stage=CAMP, content="说了"),
-        ActorWaited(message="没动", actor=HERE, stage=CAMP),
-        ActorTraveled(message="走了", actor=WANDERER, stage=BATTLEFIELD, x=1, y=2),
-        ActorEnteredStage(message="进城", actor=WANDERER, stage=CAMP),
-        ActorExitedStage(message="出城", actor=HERE, stage=CAMP),
-        ActorMovedWithinStage(
-            message="挪了", actor=HERE, stage=CAMP, destination=FIRE_ROOM
-        ),
+        ActorSpoke(message="说了", actor=HERE, stage=CAMP, site=CAMP, content="说了"),
+        ActorWaited(message="没动", actor=HERE, stage=CAMP, site=CAMP),
+        ActorTraveled(message="走了", actor=WANDERER, stage=MAP, x=1, y=2),
+        ActorEnteredSite(message="进入", actor=WANDERER, stage=CAMP, site=CAMP),
+        ActorExitedSite(message="离开", actor=HERE, stage=MAP, site=CAMP),
+        ActorMovedWithinSite(message="挪了", actor=HERE, stage=FIRE_ROOM, site=CAMP),
         NoneEvent(message="兜底"),
     ]
 
@@ -96,7 +94,14 @@ def test_unknown_field_is_rejected() -> None:
     """事件是契约：多一个字段就是写错了，不静默吞掉。"""
     with pytest.raises(ValidationError):
         ActorSpoke.model_validate(
-            {"message": "x", "actor": HERE, "stage": CAMP, "content": "x", "extra": 1}
+            {
+                "message": "x",
+                "actor": HERE,
+                "stage": CAMP,
+                "site": CAMP,
+                "content": "x",
+                "extra": 1,
+            }
         )
 
 
@@ -127,55 +132,55 @@ async def test_travel_publishes_once_but_tells_three_places() -> None:
     assert isinstance(event, ActorTraveled)
     assert (event.actor, event.stage, event.x, event.y) == (
         WANDERER,
-        BATTLEFIELD,
+        MAP,
         1,
         2,
     )
-    # 地图上只有地图自己听见；他自己另有一句路程记录
-    assert _tags(game, BATTLEFIELD) == ["actor_traveled", "actor_traveled"]
+    # 大地图上只有大地图自己听见；他自己另有一句路程记录
+    assert _tags(game, MAP) == ["actor_traveled", "actor_traveled"]
     assert _tags(game, WANDERER) == ["actor_traveled"]
 
 
-async def test_enter_publishes_the_settlement_it_entered() -> None:
+async def test_enter_publishes_the_site_it_entered() -> None:
     game, sink = _world()
     actor = entity(game, WANDERER)
-    actor.replace(PositionComponent, 2, 2)
-    system = _activate(game, ActorEnterStageSystem)
+    actor.replace(MapPositionComponent, 2, 2)
+    system = _activate(game, ActorEnterSiteSystem)
 
-    actor.replace(ActorEnterStageAction, CAMP)
+    actor.replace(ActorEnterSiteAction, CAMP)
     await system.execute()
 
     (event,) = sink.events
-    assert isinstance(event, ActorEnteredStage)
-    assert (event.actor, event.stage) == (WANDERER, CAMP)
-    assert _tags(game, CAMP) == ["actor_entered_stage"]
+    assert isinstance(event, ActorEnteredSite)
+    assert (event.actor, event.stage, event.site) == (WANDERER, CAMP, CAMP)
+    assert _tags(game, CAMP) == ["actor_entered_site"]
 
 
-async def test_exit_publishes_the_settlement_it_left() -> None:
+async def test_exit_publishes_the_site_it_left() -> None:
     game, sink = _world()
-    system = _activate(game, ActorExitStageSystem)
+    system = _activate(game, ActorExitSiteSystem)
 
-    entity(game, HERE).replace(ActorExitStageAction)
+    entity(game, HERE).replace(ActorExitSiteAction)
     await system.execute()
 
     (event,) = sink.events
-    assert isinstance(event, ActorExitedStage)
-    assert (event.actor, event.stage) == (HERE, CAMP)
+    assert isinstance(event, ActorExitedSite)
+    assert (event.actor, event.stage, event.site) == (HERE, MAP, CAMP)
 
 
-async def test_move_within_publishes_destination_and_settlement() -> None:
+async def test_move_within_publishes_destination_and_site() -> None:
     game, sink = _world()
-    system = _activate(game, ActorMoveWithinStageSystem)
+    system = _activate(game, ActorMoveWithinSiteSystem)
 
-    entity(game, HERE).replace(ActorMoveWithinStageAction, FIRE_ROOM)
+    entity(game, HERE).replace(ActorMoveWithinSiteAction, FIRE_ROOM)
     await system.execute()
 
     (event,) = sink.events
-    assert isinstance(event, ActorMovedWithinStage)
-    assert (event.actor, event.stage, event.destination) == (HERE, CAMP, FIRE_ROOM)
+    assert isinstance(event, ActorMovedWithinSite)
+    assert (event.actor, event.stage, event.site) == (HERE, FIRE_ROOM, CAMP)
 
 
-async def test_wait_inside_a_settlement_publishes_and_tells_others() -> None:
+async def test_wait_inside_a_site_publishes_and_tells_others() -> None:
     game, sink = _world()
     system = _activate(game, ActorWaitSystem)
 
@@ -184,12 +189,12 @@ async def test_wait_inside_a_settlement_publishes_and_tells_others() -> None:
 
     (event,) = sink.events
     assert isinstance(event, ActorWaited)
-    assert (event.actor, event.stage) == (HERE, CAMP)
+    assert (event.actor, event.stage, event.site) == (HERE, CAMP, CAMP)
     assert _tags(game, OTHER) == ["actor_waited"]
 
 
 async def test_wait_on_the_map_publishes_but_tells_nobody() -> None:
-    """地图上没有听众，但「这轮没动」仍是发生过的事。"""
+    """大地图上没有听众，但「这轮没动」仍是发生过的事。"""
     game, sink = _world()
     system = _activate(game, ActorWaitSystem)
 
@@ -198,8 +203,9 @@ async def test_wait_on_the_map_publishes_but_tells_nobody() -> None:
 
     (event,) = sink.events
     assert isinstance(event, ActorWaited)
-    assert event.stage == BATTLEFIELD
-    assert messages(game, BATTLEFIELD) == []
+    assert event.stage == MAP
+    assert event.site is None
+    assert messages(game, MAP) == []
     assert messages(game, HERE) == []
 
 
@@ -215,8 +221,8 @@ async def test_pulse_publishes_who_is_present() -> None:
     assert sorted(published[CAMP].actors) == sorted([HERE, OTHER])
     assert isinstance(published[TOWER], StagePulse)
     assert published[TOWER].actors == ("角色.丙",)
-    # 全局舞台没有在场者，不发布
-    assert BATTLEFIELD not in published
+    # 大地图没有在场者，不发布
+    assert MAP not in published
 
 
 ###############################################################################

@@ -16,7 +16,7 @@ from ..game.entities.action_rules import action_blocker
 from ..game.entities.player_binding import bind_player_actor
 from ..game.entities.queries import (
     get_actor_entity,
-    get_cell,
+    get_map_position,
     get_player_entity,
     is_on_map,
     list_actor_summaries,
@@ -315,11 +315,11 @@ async def command_actor(
 
 ###############################################################################
 def _location_of(game: SRPGGame, actor: Entity) -> str:
-    """执行后角色在哪儿：据点里是区域名，地图上是「全局舞台(x,y)」。"""
+    """执行后角色在哪儿：地点内部是区域名，大地图上是「大地图(x,y)」。"""
     if not is_on_map(game, actor):
         return actor.get(ActorComponent).current_stage
-    stage_entity, (x, y) = get_cell(game, actor)
-    return f"{stage_entity.name}({x},{y})"
+    map_stage, position = get_map_position(game, actor)
+    return f"{map_stage.name}({position.x},{position.y})"
 
 
 ###############################################################################

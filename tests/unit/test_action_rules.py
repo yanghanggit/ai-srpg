@@ -5,13 +5,13 @@ from ai_srpg.game.context import SRPGGame
 from ai_srpg.game.entities.action_rules import action_blocker
 from ai_srpg.models import (
     ActorComponent,
-    ActorEnterStageAction,
-    ActorExitStageAction,
-    ActorMoveWithinStageAction,
+    ActorEnterSiteAction,
+    ActorExitSiteAction,
+    ActorMoveWithinSiteAction,
     ActorSpeakAction,
     ActorTravelAction,
     ActorWaitAction,
-    PositionComponent,
+    MapPositionComponent,
 )
 from world_fixture import (
     CAMP,
@@ -29,9 +29,9 @@ def _blocker(game: SRPGGame, actor: Entity, action: object) -> str | None:
 
 
 ###############################################################################
-# 据点层
+# 地点内部层
 ###############################################################################
-def test_speak_is_allowed_inside_a_settlement() -> None:
+def test_speak_is_allowed_inside_a_site() -> None:
     game = build_world()
     assert _blocker(game, entity(game, HERE), ActorSpeakAction(content="喂")) is None
 
@@ -40,7 +40,7 @@ def test_speak_is_refused_on_the_map() -> None:
     game = build_world()
     reason = _blocker(game, entity(game, WANDERER), ActorSpeakAction(content="喂"))
     assert reason is not None
-    assert "地图不是场所" in reason
+    assert "大地图不是场所" in reason
 
 
 def test_wait_is_allowed_everywhere() -> None:
@@ -49,10 +49,10 @@ def test_wait_is_allowed_everywhere() -> None:
     assert _blocker(game, entity(game, WANDERER), ActorWaitAction()) is None
 
 
-def test_exit_requires_being_inside_a_settlement() -> None:
+def test_exit_requires_being_inside_a_site() -> None:
     game = build_world()
-    assert _blocker(game, entity(game, HERE), ActorExitStageAction()) is None
-    assert _blocker(game, entity(game, WANDERER), ActorExitStageAction()) is not None
+    assert _blocker(game, entity(game, HERE), ActorExitSiteAction()) is None
+    assert _blocker(game, entity(game, WANDERER), ActorExitSiteAction()) is not None
 
 
 def test_move_within_only_accepts_adjacent_areas() -> None:
@@ -60,53 +60,53 @@ def test_move_within_only_accepts_adjacent_areas() -> None:
     actor = entity(game, HERE)
 
     assert (
-        _blocker(game, actor, ActorMoveWithinStageAction(destination=FIRE_ROOM)) is None
+        _blocker(game, actor, ActorMoveWithinSiteAction(destination=FIRE_ROOM)) is None
     )
     assert (
-        _blocker(game, actor, ActorMoveWithinStageAction(destination=TOWER)) is not None
+        _blocker(game, actor, ActorMoveWithinSiteAction(destination=TOWER)) is not None
     )
 
 
 def test_move_within_is_refused_on_the_map() -> None:
     game = build_world()
     reason = _blocker(
-        game, entity(game, WANDERER), ActorMoveWithinStageAction(destination=CAMP)
+        game, entity(game, WANDERER), ActorMoveWithinSiteAction(destination=CAMP)
     )
     assert reason is not None
 
 
 ###############################################################################
-# 地图层
+# 大地图层
 ###############################################################################
 def test_travel_only_accepts_adjacent_cells() -> None:
     game = build_world()
     actor = entity(game, WANDERER)
 
-    assert _blocker(game, actor, ActorTravelAction(cell_x=1, cell_y=2)) is None
-    assert _blocker(game, actor, ActorTravelAction(cell_x=4, cell_y=4)) is not None
+    assert _blocker(game, actor, ActorTravelAction(x=1, y=2)) is None
+    assert _blocker(game, actor, ActorTravelAction(x=4, y=4)) is not None
 
 
-def test_travel_is_refused_inside_a_settlement() -> None:
+def test_travel_is_refused_inside_a_site() -> None:
     game = build_world()
-    assert _blocker(game, entity(game, HERE), ActorTravelAction(cell_x=1, cell_y=2))
+    assert _blocker(game, entity(game, HERE), ActorTravelAction(x=1, y=2))
 
 
-def test_enter_requires_standing_on_the_settlement_cell() -> None:
-    game = build_world()
-    actor = entity(game, WANDERER)
-
-    assert _blocker(game, actor, ActorEnterStageAction(stage_name=CAMP)) is not None
-
-    actor.replace(PositionComponent, 2, 2)
-    assert _blocker(game, actor, ActorEnterStageAction(stage_name=CAMP)) is None
-
-
-def test_enter_refuses_unknown_stage() -> None:
+def test_enter_requires_standing_on_the_site_cell() -> None:
     game = build_world()
     actor = entity(game, WANDERER)
-    actor.replace(PositionComponent, 2, 2)
 
-    reason = _blocker(game, actor, ActorEnterStageAction(stage_name="舞台.不存在"))
+    assert _blocker(game, actor, ActorEnterSiteAction(site=CAMP)) is not None
+
+    actor.replace(MapPositionComponent, 2, 2)
+    assert _blocker(game, actor, ActorEnterSiteAction(site=CAMP)) is None
+
+
+def test_enter_refuses_unknown_site() -> None:
+    game = build_world()
+    actor = entity(game, WANDERER)
+    actor.replace(MapPositionComponent, 2, 2)
+
+    reason = _blocker(game, actor, ActorEnterSiteAction(site="舞台.不存在"))
     assert reason is not None
 
 
@@ -120,5 +120,5 @@ def test_speak_on_the_map_keeps_the_actor_unchanged() -> None:
 
     _blocker(game, actor, ActorSpeakAction(content="喂"))
 
-    assert actor.get(ActorComponent).current_stage == "舞台.战场"
-    assert actor.has(PositionComponent)
+    assert actor.get(ActorComponent).current_stage == "舞台.大地图"
+    assert actor.has(MapPositionComponent)

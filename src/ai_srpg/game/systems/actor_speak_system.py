@@ -1,6 +1,6 @@
-"""角色说话：把话告诉同一个据点区域里的人。
+"""角色说话：把话告诉同一个区域里的人。
 
-说话是「场所里的事」：地图不是场所，所以站在战场上的角色不开口。
+说话是「场所里的事」：大地图不是场所，所以站在大地图上的角色不开口。
 """
 
 from typing import Dict, List, final, override
@@ -11,7 +11,7 @@ from ...entitas import Entity, GroupEvent, Matcher, ReactiveProcessor
 from ...models import ActorComponent, ActorSpeakAction, ActorSpoke
 from ..context import SRPGGame
 from ..entities.action_rules import action_blocker
-from ..entities.queries import resolve_stage_entity
+from ..entities.queries import get_site, resolve_stage_entity
 from .stage_broadcast_mixin import StageBroadcastMixin
 
 
@@ -48,13 +48,16 @@ class ActorSpeakSystem(ReactiveProcessor, StageBroadcastMixin):
             stage_entity = resolve_stage_entity(self._game, entity)
             assert stage_entity is not None, f"{entity.name} 无所在舞台"
             content = action.content
+            site = get_site(self._game, entity)
+            assert site is not None, f"{entity.name} 在地点之外，不能说话"
             event = ActorSpoke(
                 message=f"{entity.name}说：{content}",
                 actor=entity.name,
                 stage=stage_entity.name,
+                site=site.name,
                 content=content,
             )
-            self.broadcast_at_location(stage_entity, event, exclude_entities={entity})
+            self.broadcast_at_stage(stage_entity, event, exclude_entities={entity})
             self.publish(event)
 
 

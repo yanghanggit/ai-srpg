@@ -13,9 +13,9 @@ from ai_srpg.models import (
     AppearanceComponent,
     Blueprint,
     EnvironmentComponent,
-    GlobalStageComponent,
+    GridComponent,
+    MapPosition,
     NPCComponent,
-    Position,
     StageBlueprint,
     StageComponent,
     WorldBlueprint,
@@ -105,13 +105,13 @@ def create_camp_stage() -> StageBlueprint:
         StageComponent.__name__: {},
         EnvironmentComponent.__name__: {"base_environment": CAMP_ENVIRONMENT},
     }
-    stage.position = Position(x=2, y=2)
+    stage.map_position = MapPosition(x=2, y=2)
     return stage
 
 
 #######################################################################################################################################
 def create_battlefield() -> StageBlueprint:
-    """创建舞台树的根——战场：全局舞台，自带网格，营地摆在中央一格。"""
+    """创建舞台树的根——大地图：自带网格，营地摆在中央一格。"""
 
     stage = compose_stage(
         name=BATTLEFIELD_NAME,
@@ -122,7 +122,7 @@ def create_battlefield() -> StageBlueprint:
     )
     stage.components = {
         StageComponent.__name__: {},
-        GlobalStageComponent.__name__: dict(BATTLEFIELD_GRID),
+        GridComponent.__name__: dict(BATTLEFIELD_GRID),
         EnvironmentComponent.__name__: {"base_environment": BATTLEFIELD_ENVIRONMENT},
     }
     stage.children = [create_camp_stage()]

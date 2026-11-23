@@ -15,12 +15,12 @@ from ai_srpg.game.memory import get_agent_memory
 from ai_srpg.game.systems.actor_plan_mixin import ACK
 from ai_srpg.game.systems.actor_speak_system import ActorSpeakSystem
 from ai_srpg.game.systems.actor_travel_system import ActorTravelSystem
-from ai_srpg.game.systems.global_plan_system import GlobalPlanSystem
-from ai_srpg.game.systems.local_plan_system import LocalPlanSystem
+from ai_srpg.game.systems.map_plan_system import MapPlanSystem
+from ai_srpg.game.systems.site_plan_system import SitePlanSystem
 from ai_srpg.llm import AgentLoopResult
 from ai_srpg.models import (
     ActorComponent,
-    ActorEnterStageAction,
+    ActorEnterSiteAction,
     ActorPlanAction,
     ActorSpeakAction,
     ActorTravelAction,
@@ -28,7 +28,7 @@ from ai_srpg.models import (
     AIMessage,
     ChatMessage,
     HumanMessage,
-    PositionComponent,
+    MapPositionComponent,
     ToolMessage,
 )
 from world_fixture import (
@@ -78,7 +78,7 @@ async def test_predecided_command_writes_the_three_messages(
 
     monkeypatch.setattr("ai_srpg.game.systems.actor_plan_mixin.agent_loop", _boom)
     game = build_world()
-    system = _planner(game, LocalPlanSystem)
+    system = _planner(game, SitePlanSystem)
     mount_command(game, entity(game, HERE), ActorSpeakAction(content="喂"))
 
     await system.execute()
@@ -95,7 +95,7 @@ async def test_recorded_input_is_the_compressed_context(
 ) -> None:
     """记忆里留摘要：环境收成一句、在场者只留名字。"""
     game = build_world()
-    system = _planner(game, LocalPlanSystem)
+    system = _planner(game, SitePlanSystem)
     mount_command(game, entity(game, HERE), ActorSpeakAction(content="喂"))
 
     await system.execute()
@@ -109,8 +109,8 @@ async def test_recorded_input_is_the_compressed_context(
 
 async def test_recorded_tool_call_matches_the_action() -> None:
     game = build_world()
-    system = _planner(game, GlobalPlanSystem)
-    mount_command(game, entity(game, WANDERER), ActorTravelAction(cell_x=1, cell_y=2))
+    system = _planner(game, MapPlanSystem)
+    mount_command(game, entity(game, WANDERER), ActorTravelAction(x=1, y=2))
 
     await system.execute()
 
@@ -125,22 +125,22 @@ async def test_recorded_tool_call_matches_the_action() -> None:
     assert tool_message.tool_call_id == call["id"]
 
 
-async def test_enter_command_records_the_stage_name() -> None:
+async def test_enter_command_records_the_site_name() -> None:
     game = build_world()
     actor = entity(game, WANDERER)
-    actor.replace(PositionComponent, 2, 2)
-    system = _planner(game, GlobalPlanSystem)
-    mount_command(game, actor, ActorEnterStageAction(stage_name=CAMP))
+    actor.replace(MapPositionComponent, 2, 2)
+    system = _planner(game, MapPlanSystem)
+    mount_command(game, actor, ActorEnterSiteAction(site=CAMP))
 
     await system.execute()
 
     call = _memory(game, WANDERER)[2].additional_kwargs["tool_calls"][0]
-    assert call["function"]["arguments"] == f'{{"stage": "{CAMP}"}}'
+    assert call["function"]["arguments"] == f'{{"site": "{CAMP}"}}'
 
 
 async def test_wait_command_records_no_arguments() -> None:
     game = build_world()
-    system = _planner(game, LocalPlanSystem)
+    system = _planner(game, SitePlanSystem)
     mount_command(game, entity(game, HERE), ActorWaitAction())
 
     await system.execute()
@@ -170,12 +170,12 @@ async def test_plan_records_the_same_input_as_a_command(
 
     monkeypatch.setattr("ai_srpg.game.systems.actor_plan_mixin.agent_loop", _fake)
     planned = build_world()
-    system = _planner(planned, LocalPlanSystem)
+    system = _planner(planned, SitePlanSystem)
     entity(planned, HERE).replace(ActorPlanAction)
     await system.execute()
 
     commanded = build_world()
-    command_system = _planner(commanded, LocalPlanSystem)
+    command_system = _planner(commanded, SitePlanSystem)
     mount_command(commanded, entity(commanded, HERE), ActorSpeakAction(content="喂"))
     await command_system.execute()
 
@@ -188,22 +188,22 @@ async def test_plan_records_the_same_input_as_a_command(
 async def test_command_travel_takes_effect_and_is_announced() -> None:
     game = build_world()
     actor = entity(game, WANDERER)
-    plan_system = _planner(game, GlobalPlanSystem)
+    plan_system = _planner(game, MapPlanSystem)
     move_system = ActorTravelSystem(game)
     move_system.activate()
-    mount_command(game, actor, ActorTravelAction(cell_x=1, cell_y=2))
+    mount_command(game, actor, ActorTravelAction(x=1, y=2))
 
     await plan_system.execute()
     await move_system.execute()
 
-    position = actor.get(PositionComponent)
+    position = actor.get(MapPositionComponent)
     assert (position.x, position.y) == (1, 2)
-    assert said(game, WANDERER)[-1] == "你从舞台.战场(1,1)走到舞台.战场(1,2)。"
+    assert said(game, WANDERER)[-1] == "你从舞台.大地图(1,1)走到舞台.大地图(1,2)。"
 
 
 async def test_command_speak_reaches_the_other_actor() -> None:
     game = build_world()
-    plan_system = _planner(game, LocalPlanSystem)
+    plan_system = _planner(game, SitePlanSystem)
     speak_system = ActorSpeakSystem(game)
     speak_system.activate()
     mount_command(game, entity(game, HERE), ActorSpeakAction(content="火还能撑多久？"))
@@ -215,14 +215,14 @@ async def test_command_speak_reaches_the_other_actor() -> None:
 
 
 async def test_command_matching_the_wrong_layer_is_still_guarded() -> None:
-    """接管也得服从层级：地图上的说话不会被写进记忆，也不会广播。"""
+    """接管也得服从层级：大地图上的说话不会被写进记忆，也不会广播。"""
     game = build_world()
     actor = entity(game, WANDERER)
-    plan_system = _planner(game, GlobalPlanSystem)
+    plan_system = _planner(game, MapPlanSystem)
     mount_command(game, actor, ActorSpeakAction(content="有人吗？"))
 
     await plan_system.execute()
 
-    # 地图层的计划只认地图动词，说话动作留在原地、无人处理
+    # 大地图上的计划只认大地图动词，说话动作留在原地、无人处理
     assert actor.has(ActorSpeakAction)
-    assert actor.get(ActorComponent).current_stage == "舞台.战场"
+    assert actor.get(ActorComponent).current_stage == "舞台.大地图"

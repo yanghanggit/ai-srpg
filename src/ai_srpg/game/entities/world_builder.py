@@ -14,9 +14,9 @@ from ...models import (
     ActorBlueprint,
     ActorComponent,
     Blueprint,
-    GlobalStageComponent,
+    GridComponent,
     IdentityComponent,
-    PositionComponent,
+    MapPositionComponent,
     StageBlueprint,
     StageComponent,
     SystemMessage,
@@ -91,8 +91,8 @@ def _create_entity(
 
 ###############################################################################################################################################
 def _create_stage_tree(srpg_game: SRPGGame, root: StageBlueprint) -> None:
-    """按先序建舞台树：父舞台先建，子舞台的坐标按父舞台的网格校验。"""
-    grids: Dict[str, Tuple[int, int]] = {}
+    """按先序建舞台树：父舞台先建，地点的位置按大地图的网格校验。"""
+    grids: Dict[str, GridComponent] = {}
     occupied: Dict[str, Set[Tuple[int, int]]] = {}
 
     for stage, parent_name in walk_stages(root):
@@ -103,54 +103,52 @@ def _create_stage_tree(srpg_game: SRPGGame, root: StageBlueprint) -> None:
             "舞台",
             derived={StageComponent.__name__: {"parent_stage": parent_name}},
         )
-        if stage.position is not None:
+        if stage.map_position is not None:
             entity.set(
-                PositionComponent,
-                PositionComponent(x=stage.position.x, y=stage.position.y),
+                MapPositionComponent,
+                MapPositionComponent(x=stage.map_position.x, y=stage.map_position.y),
             )
 
-        grid = (
-            entity.get(GlobalStageComponent)
-            if entity.has(GlobalStageComponent)
-            else None
-        )
+        grid = entity.get(GridComponent) if entity.has(GridComponent) else None
         if parent_name is None:
             assert (
                 grid is not None
-            ), f"根舞台必须是全局舞台（缺 GlobalStageComponent）: {stage.name}"
+            ), f"根舞台是大地图，必须带网格（缺 GridComponent）: {stage.name}"
+            assert (
+                stage.map_position is None
+            ), f"根舞台是大地图，没有大地图位置: {stage.name}"
         else:
-            assert grid is None, f"只有根舞台可以是全局舞台: {stage.name}"
+            assert grid is None, f"只有大地图（根舞台）可以有网格: {stage.name}"
             _assert_placed_on_parent(stage, parent_name, grids, occupied)
 
         if grid is not None:
-            grids[stage.name] = (grid.width, grid.height)
+            grids[stage.name] = grid
 
 
 ###############################################################################################################################################
 def _assert_placed_on_parent(
     stage: StageBlueprint,
     parent_name: str,
-    grids: Dict[str, Tuple[int, int]],
+    grids: Dict[str, GridComponent],
     occupied: Dict[str, Set[Tuple[int, int]]],
 ) -> None:
-    """父舞台有网格时，子舞台必须落在格内且一格一物。"""
-    grid_size = grids.get(parent_name)
-    if grid_size is None:
+    """大地图有网格时，地点必须落在格内且一格一物。"""
+    grid = grids.get(parent_name)
+    if grid is None:
         assert (
-            stage.position is None
-        ), f"舞台 {parent_name} 没有网格，{stage.name} 不能声明位置"
+            stage.map_position is None
+        ), f"舞台 {parent_name} 没有网格，{stage.name} 不能声明大地图位置"
         return
 
     assert (
-        stage.position is not None
-    ), f"舞台 {stage.name} 在 {parent_name} 的网格上没有位置"
-    cell = (stage.position.x, stage.position.y)
-    width, height = grid_size
-    assert (
-        0 <= cell[0] < width and 0 <= cell[1] < height
-    ), f"舞台 {stage.name} 的位置 {cell} 超出 {parent_name} 的 {width}x{height} 网格"
+        stage.map_position is not None
+    ), f"地点 {stage.name} 必须声明它在大地图上的位置"
+    cell = (stage.map_position.x, stage.map_position.y)
+    assert grid.contains(
+        *cell
+    ), f"地点 {stage.name} 的位置 {cell} 超出 {parent_name} 的 {grid.width}x{grid.height} 网格"
     taken = occupied.setdefault(parent_name, set())
-    assert cell not in taken, f"舞台 {parent_name} 的位置 {cell} 已被占用: {stage.name}"
+    assert cell not in taken, f"大地图格 {cell} 已被占用: {stage.name}"
     taken.add(cell)
 
 

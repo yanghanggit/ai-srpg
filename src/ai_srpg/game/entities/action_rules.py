@@ -11,9 +11,9 @@ from loguru import logger
 from ...entitas import Entity
 from ...entitas.components import Component
 from ...models import (
-    ActorEnterStageAction,
-    ActorExitStageAction,
-    ActorMoveWithinStageAction,
+    ActorEnterSiteAction,
+    ActorExitSiteAction,
+    ActorMoveWithinSiteAction,
     ActorPlanAction,
     ActorSpeakAction,
     ActorTravelAction,
@@ -21,12 +21,12 @@ from ...models import (
 )
 from ..context import SRPGGame
 from .queries import (
-    get_adjacent_stages,
-    get_cell,
-    get_map_cells,
-    get_settlement,
-    get_stage_at_cell,
+    get_adjacent_regions,
+    get_map_position,
+    get_site,
+    get_site_at_cell,
     get_stage_entity,
+    get_visible_cells,
     is_on_map,
 )
 
@@ -34,9 +34,9 @@ from .queries import (
 _TOOL_NAMES: Final[Dict[type, str]] = {
     ActorSpeakAction: "speak",
     ActorTravelAction: "travel",
-    ActorEnterStageAction: "enter",
-    ActorExitStageAction: "exit",
-    ActorMoveWithinStageAction: "move_within",
+    ActorEnterSiteAction: "enter",
+    ActorExitSiteAction: "exit",
+    ActorMoveWithinSiteAction: "move_within",
     ActorWaitAction: "wait",
 }
 
@@ -61,10 +61,10 @@ def _tool_arguments(action: Component) -> Dict[str, Any]:
     if isinstance(action, ActorSpeakAction):
         return {"content": action.content}
     if isinstance(action, ActorTravelAction):
-        return {"x": action.cell_x, "y": action.cell_y}
-    if isinstance(action, ActorEnterStageAction):
-        return {"stage": action.stage_name}
-    if isinstance(action, ActorMoveWithinStageAction):
+        return {"x": action.x, "y": action.y}
+    if isinstance(action, ActorEnterSiteAction):
+        return {"site": action.site}
+    if isinstance(action, ActorMoveWithinSiteAction):
         return {"destination": action.destination}
     return {}
 
@@ -75,16 +75,18 @@ def action_blocker(
 ) -> Optional[str]:
     """这个动作此刻能否由这个角色执行；能做返回 ``None``，不能返回原因。"""
     if isinstance(action, ActorSpeakAction):
-        return _block_local(srpg_game, actor, "战场上没有可说话的对象（地图不是场所）")
+        return _block_site(
+            srpg_game, actor, "大地图上没有可说话的对象（大地图不是场所）"
+        )
     if isinstance(action, ActorWaitAction):
         return None
     if isinstance(action, ActorTravelAction):
         return _block_travel(srpg_game, actor, action)
-    if isinstance(action, ActorEnterStageAction):
+    if isinstance(action, ActorEnterSiteAction):
         return _block_enter(srpg_game, actor, action)
-    if isinstance(action, ActorExitStageAction):
+    if isinstance(action, ActorExitSiteAction):
         return _block_exit(srpg_game, actor)
-    if isinstance(action, ActorMoveWithinStageAction):
+    if isinstance(action, ActorMoveWithinSiteAction):
         return _block_move_within(srpg_game, actor, action)
     if isinstance(action, ActorPlanAction):
         return None
@@ -92,7 +94,7 @@ def action_blocker(
 
 
 ############################################################################################################
-def _block_local(srpg_game: SRPGGame, actor: Entity, reason: str) -> Optional[str]:
+def _block_site(srpg_game: SRPGGame, actor: Entity, reason: str) -> Optional[str]:
     return reason if is_on_map(srpg_game, actor) else None
 
 
@@ -101,9 +103,9 @@ def _block_travel(
     srpg_game: SRPGGame, actor: Entity, action: ActorTravelAction
 ) -> Optional[str]:
     if not is_on_map(srpg_game, actor):
-        return "只能站在战场上做战场移动"
-    reachable = {(cell.x, cell.y) for cell in get_map_cells(srpg_game, actor)}
-    target = (action.cell_x, action.cell_y)
+        return "只能站在大地图上移动"
+    reachable = {(cell.x, cell.y) for cell in get_visible_cells(srpg_game, actor)}
+    target = (action.x, action.y)
     if target not in reachable:
         return f"只能移动到相邻格，目标 {target} 不在其中"
     return None
@@ -111,37 +113,37 @@ def _block_travel(
 
 ############################################################################################################
 def _block_enter(
-    srpg_game: SRPGGame, actor: Entity, action: ActorEnterStageAction
+    srpg_game: SRPGGame, actor: Entity, action: ActorEnterSiteAction
 ) -> Optional[str]:
     if not is_on_map(srpg_game, actor):
-        return "已经不在战场上了"
-    stage_entity = get_stage_entity(srpg_game, action.stage_name)
-    if stage_entity is None:
-        return f"没有这个据点: {action.stage_name}"
-    global_stage, cell = get_cell(srpg_game, actor)
-    here = get_stage_at_cell(srpg_game, global_stage, cell)
-    if here is None or here.name != stage_entity.name:
-        return f"不在 {stage_entity.name} 所在的格子 {cell}，进不去"
+        return "已经不在大地图上了"
+    site = get_stage_entity(srpg_game, action.site)
+    if site is None:
+        return f"没有这个地点: {action.site}"
+    map_stage, position = get_map_position(srpg_game, actor)
+    here = get_site_at_cell(srpg_game, map_stage, position)
+    if here is None or here.name != site.name:
+        return f"不在 {site.name} 所在的格子 ({position.x},{position.y})，进不去"
     return None
 
 
 ############################################################################################################
 def _block_exit(srpg_game: SRPGGame, actor: Entity) -> Optional[str]:
-    if get_settlement(srpg_game, actor) is None:
-        return "已经站在战场上了，没有城可出"
+    if get_site(srpg_game, actor) is None:
+        return "已经站在大地图上了，没有地点可离开"
     return None
 
 
 ############################################################################################################
 def _block_move_within(
-    srpg_game: SRPGGame, actor: Entity, action: ActorMoveWithinStageAction
+    srpg_game: SRPGGame, actor: Entity, action: ActorMoveWithinSiteAction
 ) -> Optional[str]:
     if is_on_map(srpg_game, actor):
-        return "站在战场上，没有城内可去的区域"
-    reachable = {stage.name for stage in get_adjacent_stages(srpg_game, actor)}
+        return "站在大地图上，没有可去的区域"
+    reachable = {stage.name for stage in get_adjacent_regions(srpg_game, actor)}
     if action.destination not in reachable:
         logger.debug(f"{actor.name} 可去的相邻区域: {sorted(reachable)}")
-        return f"据点内只能去相邻区域，目标 {action.destination!r} 不在其中"
+        return f"地点内只能去相邻区域，目标 {action.destination!r} 不在其中"
     return None
 
 

@@ -32,9 +32,9 @@ from ai_srpg.models import (
     AppearanceComponent,
     Blueprint,
     EnvironmentComponent,
-    GlobalStageComponent,
+    GridComponent,
     HumanMessage,
-    Position,
+    MapPosition,
     RefreshAppearanceAction,
     RefreshEnvironmentAction,
     StageBlueprint,
@@ -75,7 +75,7 @@ def _camp(narrative: str | None = None) -> StageBlueprint:
         name=STAGE,
         system_message=f"{STAGE} 的设定",
         components=components,
-        position=Position(x=2, y=2),
+        map_position=MapPosition(x=2, y=2),
     )
 
 
@@ -88,11 +88,11 @@ def _game(*, appearance: str | None = None, narrative: str | None = None) -> SRP
             campaign_setting="设定",
             global_rules="规则",
             stage_tree=StageBlueprint(
-                name="舞台.战场",
-                system_message="舞台.战场 的设定",
+                name="舞台.大地图",
+                system_message="舞台.大地图 的设定",
                 components={
                     StageComponent.__name__: {},
-                    GlobalStageComponent.__name__: {"width": 5, "height": 5},
+                    GridComponent.__name__: {"width": 5, "height": 5},
                 },
                 children=[_camp(narrative)],
             ),

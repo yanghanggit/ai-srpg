@@ -1,6 +1,6 @@
-"""全局舞台广播：以战场坐标为原点，按格距波及据点与其子树。
+"""大地图广播：以大地图坐标为原点，按格距波及地点及其内部区域。
 
-三条硬约束：范围按切比雪夫距离算、命中据点的整棵子树一并收到、跨舞台的事件只发布
+三条硬约束：范围按切比雪夫距离算、命中地点及其整棵子树、跨舞台的事件只发布
 一次（否则会话历史里会出现重复记录）。
 """
 
@@ -18,9 +18,9 @@ from ai_srpg.models import (
     ActorBlueprint,
     ActorComponent,
     Blueprint,
-    GlobalStageComponent,
+    GridComponent,
+    MapPosition,
     NoneEvent,
-    Position,
     StageBlueprint,
     StageComponent,
     WorldBlueprint,
@@ -28,7 +28,7 @@ from ai_srpg.models import (
 )
 
 ###############################################################################
-# 5x5 战场：
+# 5x5 大地图：
 #   (0,0) 营地 (1,0) 哨站 (2,0) 矿场
 #   营地内挂 铁匠铺（无坐标）
 ###############################################################################
@@ -41,14 +41,14 @@ FORGE = "舞台.铁匠铺"
 def _stage(
     name: str,
     *,
-    position: Position | None = None,
+    map_position: MapPosition | None = None,
     children: List[StageBlueprint] | None = None,
 ) -> StageBlueprint:
     return StageBlueprint(
         name=name,
         system_message=f"{name} 的设定",
         components={StageComponent.__name__: {}},
-        position=position,
+        map_position=map_position,
         children=children or [],
     )
 
@@ -63,16 +63,16 @@ def _entity(name: str, stage_name: str) -> ActorBlueprint:
 
 def _blueprint() -> Blueprint:
     root = StageBlueprint(
-        name="舞台.战场",
-        system_message="舞台.战场 的设定",
+        name="舞台.大地图",
+        system_message="舞台.大地图 的设定",
         components={
             StageComponent.__name__: {},
-            GlobalStageComponent.__name__: {"width": 5, "height": 5},
+            GridComponent.__name__: {"width": 5, "height": 5},
         },
         children=[
-            _stage(CAMP, position=Position(x=0, y=0), children=[_stage(FORGE)]),
-            _stage(OUTPOST, position=Position(x=1, y=0)),
-            _stage(MINE, position=Position(x=2, y=0)),
+            _stage(CAMP, map_position=MapPosition(x=0, y=0), children=[_stage(FORGE)]),
+            _stage(OUTPOST, map_position=MapPosition(x=1, y=0)),
+            _stage(MINE, map_position=MapPosition(x=2, y=0)),
         ],
     )
     return Blueprint(
@@ -134,7 +134,7 @@ def test_radius_zero_only_covers_the_origin_stage() -> None:
     game = _game()
     camp = game.get_entity_by_name(CAMP)
 
-    StageBroadcastMixin(game).broadcast_to_global_stage(
+    StageBroadcastMixin(game).broadcast_over_map(
         camp, NoneEvent(message="营地起火了"), radius=0  # type: ignore[arg-type]
     )
 
@@ -148,11 +148,11 @@ def test_radius_zero_only_covers_the_origin_stage() -> None:
 def test_radius_is_chebyshev() -> None:
     """距离按八方向算：(0,0) 到 (1,1) 也是一格。"""
     blueprint = _blueprint()
-    blueprint.stage_tree.children[1].position = Position(x=1, y=1)
+    blueprint.stage_tree.children[1].map_position = MapPosition(x=1, y=1)
     game = create_srpg_game(name="BroadcastTest", events=RecordingEventSink())
     build_from_blueprint(game, blueprint)
 
-    StageBroadcastMixin(game).broadcast_to_global_stage(
+    StageBroadcastMixin(game).broadcast_over_map(
         game.get_entity_by_name(CAMP),  # type: ignore[arg-type]
         NoneEvent(message="路口的动静"),
         radius=1,
@@ -166,7 +166,7 @@ def test_radius_one_reaches_neighbours_but_not_farther_stages() -> None:
     """半径 1 命中营地与哨站，矿场听不到。"""
     game = _game()
 
-    StageBroadcastMixin(game).broadcast_to_global_stage(
+    StageBroadcastMixin(game).broadcast_over_map(
         game.get_entity_by_name(CAMP),  # type: ignore[arg-type]
         NoneEvent(message="远处有火光"),
         radius=1,
@@ -180,17 +180,17 @@ def test_radius_one_reaches_neighbours_but_not_farther_stages() -> None:
 
 
 ###############################################################################
-def test_full_map_broadcast_reaches_every_local_stage() -> None:
-    """radius=None 是全图广播；全局舞台本身不收，因为它没有「在场者」。"""
+def test_full_map_broadcast_reaches_every_region() -> None:
+    """radius=None 是全图广播；大地图本身不收，因为它没有「在场者」。"""
     game = _game()
-    battlefield = game.get_entity_by_name("舞台.战场")
+    map_stage = game.get_entity_by_name("舞台.大地图")
 
-    StageBroadcastMixin(game).broadcast_to_global_stage(
-        battlefield, NoneEvent(message="天黑了"), radius=None  # type: ignore[arg-type]
+    StageBroadcastMixin(game).broadcast_over_map(
+        map_stage, NoneEvent(message="天黑了"), radius=None  # type: ignore[arg-type]
     )
 
     assert set(_heard(game)) == {"角色.营中人", "角色.铁匠", "角色.哨兵", "角色.矿工"}
-    assert _human_messages(game, "舞台.战场") == []
+    assert _human_messages(game, "舞台.大地图") == []
 
 
 ###############################################################################
@@ -198,7 +198,7 @@ def test_broadcast_only_delivers() -> None:
     """广播只决定谁听见；事件由发起这件事的 system 发布一次，否则历史会重复。"""
     game = _game()
 
-    StageBroadcastMixin(game).broadcast_to_global_stage(
+    StageBroadcastMixin(game).broadcast_over_map(
         game.get_entity_by_name(CAMP),  # type: ignore[arg-type]
         NoneEvent(message="讯息传开"),
         radius=1,
@@ -213,12 +213,12 @@ def test_broadcast_only_delivers() -> None:
 
 
 ###############################################################################
-def test_anchor_inside_a_settlement_uses_the_parent_cell() -> None:
+def test_anchor_inside_a_site_uses_the_parent_cell() -> None:
     """建筑没有坐标，用最近的有坐标祖先当锚点——结果与从营地发起完全一样。"""
     game = _game()
     forge = game.get_entity_by_name(FORGE)
 
-    StageBroadcastMixin(game).broadcast_to_global_stage(
+    StageBroadcastMixin(game).broadcast_over_map(
         forge, NoneEvent(message="铁锤声传开"), radius=1  # type: ignore[arg-type]
     )
 
@@ -227,16 +227,16 @@ def test_anchor_inside_a_settlement_uses_the_parent_cell() -> None:
 
 ###############################################################################
 def test_coordinate_less_stage_requires_full_map_radius() -> None:
-    """没有坐标的节点做有限半径广播是说不通的，必须当场报错。
+    """没有坐标的区域做有限半径广播是说不通的，必须当场报错。
 
-    蓝图装配期不允许出现这种节点，这里直接造一个，验证兜底而不是正常路径。
+    蓝图装配期不允许出现这种区域，这里直接造一个，验证兜底而不是正常路径。
     """
     game = _game()
     orphans = game.create_entity("舞台.无名地")
-    orphans.add(StageComponent, "舞台.战场")
+    orphans.add(StageComponent, "舞台.大地图")
 
     with pytest.raises(AssertionError, match="没有坐标"):
-        StageBroadcastMixin(game).broadcast_to_global_stage(
+        StageBroadcastMixin(game).broadcast_over_map(
             orphans, NoneEvent(message="?"), radius=1
         )
 
@@ -246,7 +246,7 @@ def test_negative_radius_is_rejected() -> None:
     game = _game()
 
     with pytest.raises(AssertionError, match="半径不能为负数"):
-        StageBroadcastMixin(game).broadcast_to_global_stage(
+        StageBroadcastMixin(game).broadcast_over_map(
             game.get_entity_by_name(CAMP), NoneEvent(message="?"), radius=-1  # type: ignore[arg-type]
         )
 
@@ -258,7 +258,7 @@ def test_excluded_entities_do_not_hear_it() -> None:
     speaker = game.get_entity_by_name(CAMP)
     assert speaker is not None
 
-    StageBroadcastMixin(game).broadcast_to_global_stage(
+    StageBroadcastMixin(game).broadcast_over_map(
         speaker,
         NoneEvent(message="我喊了一声"),
         radius=0,

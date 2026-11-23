@@ -11,7 +11,7 @@ from ai_srpg.models import (
     ActorBlueprint,
     ActorComponent,
     Blueprint,
-    GlobalStageComponent,
+    GridComponent,
     StageBlueprint,
     StageComponent,
     WorldBlueprint,
@@ -30,7 +30,7 @@ def _blueprint() -> Blueprint:
             system_message="# 舞台.营\n\n舞台 prompt",
             components={
                 StageComponent.__name__: {},
-                GlobalStageComponent.__name__: {"width": 5, "height": 5},
+                GridComponent.__name__: {"width": 5, "height": 5},
             },
         ),
         actors=[

@@ -1,7 +1,7 @@
 """角色等待：告诉同一处的人他没有动。
 
-等待也有信息量——「什么都没发生」与「没人在」是两件事。地图不是场所，没有可告知的
-对象，所以站在战场上的等待只是「这一轮没动」，不产生广播。
+等待也有信息量——「什么都没发生」与「没人在」是两件事。大地图不是场所，没有可告知的
+对象，所以站在大地图上的等待只是「这一轮没动」，不产生广播。
 """
 
 from typing import Dict, List, final, override
@@ -9,7 +9,7 @@ from typing import Dict, List, final, override
 from ...entitas import Entity, GroupEvent, Matcher, ReactiveProcessor
 from ...models import ActorComponent, ActorWaitAction, ActorWaited
 from ..context import SRPGGame
-from ..entities.queries import is_on_map, resolve_stage_entity
+from ..entities.queries import get_site, is_on_map, resolve_stage_entity
 from .stage_broadcast_mixin import StageBroadcastMixin
 
 
@@ -40,16 +40,16 @@ class ActorWaitSystem(ReactiveProcessor, StageBroadcastMixin):
             entity.remove(ActorWaitAction)
             stage_entity = resolve_stage_entity(self._game, entity)
             assert stage_entity is not None, f"{entity.name} 无所在舞台"
+            site = get_site(self._game, entity)
             event = ActorWaited(
                 message=f"{entity.name}留在原地。",
                 actor=entity.name,
                 stage=stage_entity.name,
+                site=site.name if site is not None else None,
             )
             if not is_on_map(self._game, entity):
-                # 地图不是场所：没有可告知的对象，但「这轮没动」仍是发生过的事
-                self.broadcast_at_location(
-                    stage_entity, event, exclude_entities={entity}
-                )
+                # 大地图不是场所：没有可告知的对象，但「这轮没动」仍是发生过的事
+                self.broadcast_at_stage(stage_entity, event, exclude_entities={entity})
             self.publish(event)
 
 

@@ -6,9 +6,12 @@
 
 动作与事件一一对应：一个行为动作在同一次 pass 里产生一个事件。位置变化会被三处听见，
 但事件只发布一次：投递范围是「谁听见」，事件是「谁做了什么」。
+
+空间字段只有两个口径：``stage`` 是事件发生所在的舞台（结果位置），``site`` 是事件所属的
+地点；大地图上的事件没有 ``site``。
 """
 
-from typing import Annotated, Literal, Tuple, Union, final
+from typing import Annotated, Literal, Optional, Tuple, Union, final
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -31,7 +34,7 @@ class NoneEvent(AgentEvent):
 
 @final
 class StagePulse(AgentEvent):
-    """舞台脉动：此刻某个局部舞台里有哪些角色。"""
+    """舞台脉动：此刻某个区域里有哪些角色。"""
 
     type: Literal["stage_pulse"] = "stage_pulse"
     stage: str
@@ -45,21 +48,23 @@ class ActorSpoke(AgentEvent):
     type: Literal["actor_spoke"] = "actor_spoke"
     actor: str
     stage: str
+    site: str
     content: str
 
 
 @final
 class ActorWaited(AgentEvent):
-    """角色这一轮没有动。``stage`` 是它当时所在的舞台：地图上也算一处位置。"""
+    """角色这一轮没有动。``stage`` 是它当时所在的舞台；``site`` 为所在地点。"""
 
     type: Literal["actor_waited"] = "actor_waited"
     actor: str
     stage: str
+    site: Optional[str] = None
 
 
 @final
 class ActorTraveled(AgentEvent):
-    """角色在战场上走到某一格。"""
+    """角色在大地图上走到某一格。"""
 
     type: Literal["actor_traveled"] = "actor_traveled"
     actor: str
@@ -69,31 +74,33 @@ class ActorTraveled(AgentEvent):
 
 
 @final
-class ActorEnteredStage(AgentEvent):
-    """角色走进脚下的据点，落到据点根。"""
+class ActorEnteredSite(AgentEvent):
+    """角色走进脚下这个地点，落到地点入口。"""
 
-    type: Literal["actor_entered_stage"] = "actor_entered_stage"
+    type: Literal["actor_entered_site"] = "actor_entered_site"
     actor: str
     stage: str
+    site: str
 
 
 @final
-class ActorExitedStage(AgentEvent):
-    """角色离开据点，回到据点所在的战场格子。"""
+class ActorExitedSite(AgentEvent):
+    """角色离开地点，回到大地图上地点所在的那一格。"""
 
-    type: Literal["actor_exited_stage"] = "actor_exited_stage"
+    type: Literal["actor_exited_site"] = "actor_exited_site"
     actor: str
     stage: str
+    site: str
 
 
 @final
-class ActorMovedWithinStage(AgentEvent):
-    """角色在据点内部从一处区域走到另一处。"""
+class ActorMovedWithinSite(AgentEvent):
+    """角色在地点内部从一处区域走到另一处。"""
 
-    type: Literal["actor_moved_within_stage"] = "actor_moved_within_stage"
+    type: Literal["actor_moved_within_site"] = "actor_moved_within_site"
     actor: str
     stage: str
-    destination: str
+    site: str
 
 
 AnyAgentEvent = Annotated[
@@ -103,18 +110,18 @@ AnyAgentEvent = Annotated[
         ActorSpoke,
         ActorWaited,
         ActorTraveled,
-        ActorEnteredStage,
-        ActorExitedStage,
-        ActorMovedWithinStage,
+        ActorEnteredSite,
+        ActorExitedSite,
+        ActorMovedWithinSite,
     ],
     Field(discriminator="type"),
 ]
 
 ###############################################################################
 __all__ = [
-    "ActorEnteredStage",
-    "ActorExitedStage",
-    "ActorMovedWithinStage",
+    "ActorEnteredSite",
+    "ActorExitedSite",
+    "ActorMovedWithinSite",
     "ActorSpoke",
     "ActorTraveled",
     "ActorWaited",

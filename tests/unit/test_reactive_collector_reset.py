@@ -14,7 +14,7 @@ from ai_srpg.game.pipelines.runner import process_pipeline
 from ai_srpg.game.systems.actor_speak_system import ActorSpeakSystem
 from ai_srpg.game.systems.actor_travel_system import ActorTravelSystem
 from ai_srpg.game.systems.actor_wait_system import ActorWaitSystem
-from ai_srpg.models import ActorTravelAction, ActorWaitAction, PositionComponent
+from ai_srpg.models import ActorTravelAction, ActorWaitAction, MapPositionComponent
 from world_fixture import WANDERER, build_world, entity
 
 _Processor = TypeVar("_Processor")
@@ -39,7 +39,7 @@ async def test_collectors_are_empty_after_a_pass() -> None:
     actor.replace(ActorTravelAction, 1, 2)
     await process_pipeline(game.pipeline, None)
 
-    position = actor.get(PositionComponent)
+    position = actor.get(MapPositionComponent)
     assert (position.x, position.y) == (1, 2)
     assert system._collector.collected_entities == set()
 
@@ -54,7 +54,7 @@ async def test_second_pass_does_not_see_the_stale_action() -> None:
     await process_pipeline(game.pipeline, None)
     await process_pipeline(game.pipeline, None)
 
-    position = actor.get(PositionComponent)
+    position = actor.get(MapPositionComponent)
     assert (position.x, position.y) == (1, 2)
 
 

@@ -45,7 +45,7 @@ def deliver_entities_by_stage(
 ) -> None:
     """按舞台分组投递：每条消息带自己所在舞台的标记。
 
-    跨舞台的广播（例如按距离波及若干据点）不该变成多条领域事件——范围只是它被谁听见。
+    跨舞台的广播（例如按距离波及若干地点）不该变成多条领域事件——范围只是它被谁听见。
     """
     for stage_name, entities in entities_by_stage.items():
         _append_messages(srpg_game, entities, agent_event, broadcast_stage=stage_name)

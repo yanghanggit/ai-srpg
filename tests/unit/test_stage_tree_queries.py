@@ -21,8 +21,8 @@ from ai_srpg.models import (
     ActorBlueprint,
     ActorComponent,
     Blueprint,
-    GlobalStageComponent,
-    Position,
+    GridComponent,
+    MapPosition,
     StageBlueprint,
     StageComponent,
     WorldBlueprint,
@@ -31,18 +31,20 @@ from ai_srpg.models import (
 
 
 ###############################################################################
-def _stage(name: str, *, position: Position = Position(x=0, y=0)) -> StageBlueprint:
+def _stage(
+    name: str, *, map_position: MapPosition = MapPosition(x=0, y=0)
+) -> StageBlueprint:
     return StageBlueprint(
         name=name,
         system_message=f"{name} 的设定",
         components={StageComponent.__name__: {}},
-        position=position,
+        map_position=map_position,
     )
 
 
 def _blueprint(world_count: int = 1) -> Blueprint:
-    """战场 (0,0) 下挂营地与哨站，营地再挂铁匠铺；另有站在战场上的角色。"""
-    camp = _stage("舞台.营地", position=Position(x=1, y=1))
+    """大地图 (0,0) 下挂营地与哨站，营地再挂铁匠铺；另有站在大地图上的角色。"""
+    camp = _stage("舞台.营地", map_position=MapPosition(x=1, y=1))
     camp.children = [
         StageBlueprint(
             name="舞台.铁匠铺",
@@ -51,13 +53,13 @@ def _blueprint(world_count: int = 1) -> Blueprint:
         )
     ]
     root = StageBlueprint(
-        name="舞台.战场",
-        system_message="舞台.战场 的设定",
+        name="舞台.大地图",
+        system_message="舞台.大地图 的设定",
         components={
             StageComponent.__name__: {},
-            GlobalStageComponent.__name__: {"width": 5, "height": 5},
+            GridComponent.__name__: {"width": 5, "height": 5},
         },
-        children=[camp, _stage("舞台.哨站", position=Position(x=2, y=2))],
+        children=[camp, _stage("舞台.哨站", map_position=MapPosition(x=2, y=2))],
     )
     return Blueprint(
         name="TreeTest",
@@ -68,7 +70,7 @@ def _blueprint(world_count: int = 1) -> Blueprint:
             ActorBlueprint(
                 name="角色.游荡者",
                 system_message="角色.游荡者",
-                components={ActorComponent.__name__: {"current_stage": "舞台.战场"}},
+                components={ActorComponent.__name__: {"current_stage": "舞台.大地图"}},
             ),
             ActorBlueprint(
                 name="角色.铁匠",
@@ -100,7 +102,7 @@ def test_grouping_covers_every_stage_in_tree_preorder() -> None:
 
     names = list(get_actors_by_stage_as_names(game))
 
-    assert names == ["舞台.战场", "舞台.营地", "舞台.铁匠铺", "舞台.哨站"]
+    assert names == ["舞台.大地图", "舞台.营地", "舞台.铁匠铺", "舞台.哨站"]
 
 
 ###############################################################################
@@ -110,7 +112,7 @@ def test_grouping_order_does_not_depend_on_entity_count(world_count: int) -> Non
     game = _build(world_count)
 
     assert list(get_actors_by_stage_as_names(game)) == [
-        "舞台.战场",
+        "舞台.大地图",
         "舞台.营地",
         "舞台.铁匠铺",
         "舞台.哨站",
@@ -119,12 +121,12 @@ def test_grouping_order_does_not_depend_on_entity_count(world_count: int) -> Non
 
 ###############################################################################
 def test_grouping_only_holds_direct_members() -> None:
-    """只含直接归属：战场上是游荡者，铁匠在铁匠铺，营地本身是空的。"""
+    """只含直接归属：大地图上是游荡者，铁匠在铁匠铺，营地本身是空的。"""
     game = _build()
 
     mapping = get_actors_by_stage_as_names(game)
 
-    assert mapping["舞台.战场"] == ["角色.游荡者"]
+    assert mapping["舞台.大地图"] == ["角色.游荡者"]
     assert mapping["舞台.铁匠铺"] == ["角色.铁匠"]
     assert mapping["舞台.营地"] == []
 
@@ -133,10 +135,10 @@ def test_grouping_only_holds_direct_members() -> None:
 def test_actors_in_stage_does_not_include_descendants() -> None:
     """按舞台取角色同样只看直接归属，与广播范围保持一致。"""
     game = _build()
-    battlefield = get_stage_entity(game, "舞台.战场")
-    assert battlefield is not None
+    map_stage = get_stage_entity(game, "舞台.大地图")
+    assert map_stage is not None
 
-    actors = get_actors_in_stage(game, battlefield)
+    actors = get_actors_in_stage(game, map_stage)
 
     assert {actor.name for actor in actors} == {"角色.游荡者"}
 
@@ -145,10 +147,10 @@ def test_actors_in_stage_does_not_include_descendants() -> None:
 def test_child_stages_follow_declaration_order() -> None:
     """子舞台按蓝图里的声明顺序返回。"""
     game = _build()
-    battlefield = get_stage_entity(game, "舞台.战场")
-    assert battlefield is not None
+    map_stage = get_stage_entity(game, "舞台.大地图")
+    assert map_stage is not None
 
-    children = get_child_stages(game, "舞台.战场")
+    children = get_child_stages(game, "舞台.大地图")
 
     assert [child.name for child in children] == ["舞台.营地", "舞台.哨站"]
     assert get_child_stages(game, "舞台.铁匠铺") == []
@@ -161,8 +163,8 @@ def test_ancestors_are_listed_nearest_first() -> None:
 
     ancestors = get_ancestor_stages(game, "舞台.铁匠铺")
 
-    assert [stage.name for stage in ancestors] == ["舞台.营地", "舞台.战场"]
-    assert get_ancestor_stages(game, "舞台.战场") == []
+    assert [stage.name for stage in ancestors] == ["舞台.营地", "舞台.大地图"]
+    assert get_ancestor_stages(game, "舞台.大地图") == []
 
 
 ###############################################################################
@@ -171,7 +173,7 @@ def test_ancestors_of_actor_stage() -> None:
     game = _build()
 
     assert [stage.name for stage in get_ancestor_stages(game, "舞台.铁匠铺")][-1] == (
-        "舞台.战场"
+        "舞台.大地图"
     )
 
 

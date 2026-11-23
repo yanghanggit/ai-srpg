@@ -9,7 +9,7 @@ from .agent_memory_snapshot import AgentMemorySnapshot
 from .context_snapshot import ContextSnapshot
 
 #: 组合快照格式版本；子结构各自还有版本号。
-GAME_SNAPSHOT_FORMAT_VERSION: Final[int] = 1
+GAME_SNAPSHOT_FORMAT_VERSION: Final[int] = 2
 
 
 ###############################################################################################################################################

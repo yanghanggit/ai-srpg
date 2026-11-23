@@ -10,8 +10,8 @@ from pydantic import BaseModel
 
 from ..entitas import ContextData
 
-#: 快照格式版本；改变 ``ContextData`` 结构时递增，并在此集中做迁移。
-SNAPSHOT_FORMAT_VERSION: Final[int] = 1
+#: 快照格式版本；改变 ``ContextData`` 结构（含组件类型名）时递增；旧快照会被明确拒绝。
+SNAPSHOT_FORMAT_VERSION: Final[int] = 3
 
 
 ###############################################################################################################################################

@@ -14,9 +14,9 @@ def build_game_pipeline(srpg_game: SRPGGame) -> ProcessorPipeline:
 
     ### 不这样就循环引用：systems 依赖 game 领域模块，而 game 装配又依赖 systems。
     from ..systems.action_cleanup_system import ActionCleanupSystem
-    from ..systems.actor_enter_stage_system import ActorEnterStageSystem
-    from ..systems.actor_exit_stage_system import ActorExitStageSystem
-    from ..systems.actor_move_within_stage_system import ActorMoveWithinStageSystem
+    from ..systems.actor_enter_site_system import ActorEnterSiteSystem
+    from ..systems.actor_exit_site_system import ActorExitSiteSystem
+    from ..systems.actor_move_within_site_system import ActorMoveWithinSiteSystem
     from ..systems.actor_speak_system import ActorSpeakSystem
     from ..systems.actor_travel_system import ActorTravelSystem
     from ..systems.actor_wait_system import ActorWaitSystem
@@ -26,9 +26,9 @@ def build_game_pipeline(srpg_game: SRPGGame) -> ProcessorPipeline:
     from ..systems.destroy_entity_system import DestroyEntitySystem
     from ..systems.environment_refresh_system import EnvironmentRefreshSystem
     from ..systems.epilogue_system import EpilogueSystem
-    from ..systems.global_plan_system import GlobalPlanSystem
-    from ..systems.local_plan_system import LocalPlanSystem
+    from ..systems.map_plan_system import MapPlanSystem
     from ..systems.prologue_system import PrologueSystem
+    from ..systems.site_plan_system import SitePlanSystem
     from ..systems.stage_pulse_system import StagePulseSystem
     from ..systems.stale_description_system import StaleDescriptionSystem
 
@@ -49,17 +49,17 @@ def build_game_pipeline(srpg_game: SRPGGame) -> ProcessorPipeline:
     pipeline.add(AutoCompactSystem(srpg_game))
     pipeline.add(CompactMemorySystem(srpg_game))
 
-    # 计划：两层各有各的上下文与动词，靠 filter 的层级判定互斥。
-    pipeline.add(LocalPlanSystem(srpg_game))
-    pipeline.add(GlobalPlanSystem(srpg_game))
+    # 计划：大地图与地点各有各的上下文与动词，靠 filter 的层级判定互斥。
+    pipeline.add(SitePlanSystem(srpg_game))
+    pipeline.add(MapPlanSystem(srpg_game))
 
     # 行为：一个动作只做一件事，层级不符的动作不会被处理。
     pipeline.add(ActorSpeakSystem(srpg_game))
     pipeline.add(ActorWaitSystem(srpg_game))
     pipeline.add(ActorTravelSystem(srpg_game))
-    pipeline.add(ActorEnterStageSystem(srpg_game))
-    pipeline.add(ActorExitStageSystem(srpg_game))
-    pipeline.add(ActorMoveWithinStageSystem(srpg_game))
+    pipeline.add(ActorEnterSiteSystem(srpg_game))
+    pipeline.add(ActorExitSiteSystem(srpg_game))
+    pipeline.add(ActorMoveWithinSiteSystem(srpg_game))
 
     # ---------------------------------------------------------------------
     # 通用尾部：清理动作组件、销毁待销毁实体并收尾
