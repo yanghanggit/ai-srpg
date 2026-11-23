@@ -11,13 +11,13 @@ from loguru import logger
 from ...entitas import Entity
 from ...entitas.components import Component
 from ...models import (
-    ActorEnterSiteAction,
-    ActorExitSiteAction,
-    ActorMoveWithinSiteAction,
-    ActorPlanAction,
-    ActorSpeakAction,
-    ActorTravelAction,
-    ActorWaitAction,
+    EnterSiteAction,
+    ExitSiteAction,
+    MoveWithinSiteAction,
+    PlanAction,
+    SpeakAction,
+    TravelAction,
+    WaitAction,
 )
 from ..context import SRPGGame
 from .queries import (
@@ -32,12 +32,12 @@ from .queries import (
 
 #: 动作 → 工具名：记忆里的工具调用与计划路径用同一套名字
 _TOOL_NAMES: Final[Dict[type, str]] = {
-    ActorSpeakAction: "speak",
-    ActorTravelAction: "travel",
-    ActorEnterSiteAction: "enter",
-    ActorExitSiteAction: "exit",
-    ActorMoveWithinSiteAction: "move_within",
-    ActorWaitAction: "wait",
+    SpeakAction: "speak",
+    TravelAction: "travel",
+    EnterSiteAction: "enter",
+    ExitSiteAction: "exit",
+    MoveWithinSiteAction: "move_within",
+    WaitAction: "wait",
 }
 
 
@@ -58,13 +58,13 @@ def action_arguments(action: Component) -> Tuple[Any, ...]:
 
 ############################################################################################################
 def _tool_arguments(action: Component) -> Dict[str, Any]:
-    if isinstance(action, ActorSpeakAction):
+    if isinstance(action, SpeakAction):
         return {"content": action.content}
-    if isinstance(action, ActorTravelAction):
+    if isinstance(action, TravelAction):
         return {"x": action.x, "y": action.y}
-    if isinstance(action, ActorEnterSiteAction):
+    if isinstance(action, EnterSiteAction):
         return {"site": action.site}
-    if isinstance(action, ActorMoveWithinSiteAction):
+    if isinstance(action, MoveWithinSiteAction):
         return {"destination": action.destination}
     return {}
 
@@ -74,21 +74,21 @@ def action_blocker(
     srpg_game: SRPGGame, actor: Entity, action: Component
 ) -> Optional[str]:
     """这个动作此刻能否由这个角色执行；能做返回 ``None``，不能返回原因。"""
-    if isinstance(action, ActorSpeakAction):
+    if isinstance(action, SpeakAction):
         return _block_site(
             srpg_game, actor, "大地图上没有可说话的对象（大地图不是场所）"
         )
-    if isinstance(action, ActorWaitAction):
+    if isinstance(action, WaitAction):
         return None
-    if isinstance(action, ActorTravelAction):
+    if isinstance(action, TravelAction):
         return _block_travel(srpg_game, actor, action)
-    if isinstance(action, ActorEnterSiteAction):
+    if isinstance(action, EnterSiteAction):
         return _block_enter(srpg_game, actor, action)
-    if isinstance(action, ActorExitSiteAction):
+    if isinstance(action, ExitSiteAction):
         return _block_exit(srpg_game, actor)
-    if isinstance(action, ActorMoveWithinSiteAction):
+    if isinstance(action, MoveWithinSiteAction):
         return _block_move_within(srpg_game, actor, action)
-    if isinstance(action, ActorPlanAction):
+    if isinstance(action, PlanAction):
         return None
     raise ValueError(f"未知动作，缺少守卫判据: {type(action).__name__}")
 
@@ -100,7 +100,7 @@ def _block_site(srpg_game: SRPGGame, actor: Entity, reason: str) -> Optional[str
 
 ############################################################################################################
 def _block_travel(
-    srpg_game: SRPGGame, actor: Entity, action: ActorTravelAction
+    srpg_game: SRPGGame, actor: Entity, action: TravelAction
 ) -> Optional[str]:
     if not is_on_map(srpg_game, actor):
         return "只能站在大地图上移动"
@@ -113,7 +113,7 @@ def _block_travel(
 
 ############################################################################################################
 def _block_enter(
-    srpg_game: SRPGGame, actor: Entity, action: ActorEnterSiteAction
+    srpg_game: SRPGGame, actor: Entity, action: EnterSiteAction
 ) -> Optional[str]:
     if not is_on_map(srpg_game, actor):
         return "已经不在大地图上了"
@@ -136,7 +136,7 @@ def _block_exit(srpg_game: SRPGGame, actor: Entity) -> Optional[str]:
 
 ############################################################################################################
 def _block_move_within(
-    srpg_game: SRPGGame, actor: Entity, action: ActorMoveWithinSiteAction
+    srpg_game: SRPGGame, actor: Entity, action: MoveWithinSiteAction
 ) -> Optional[str]:
     if is_on_map(srpg_game, actor):
         return "站在大地图上，没有可去的区域"

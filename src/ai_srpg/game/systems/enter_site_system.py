@@ -12,7 +12,7 @@ from ...entitas import Entity, GroupEvent, Matcher, ReactiveProcessor
 from ...models import (
     ActorComponent,
     ActorEnteredSite,
-    ActorEnterSiteAction,
+    EnterSiteAction,
     MapPositionComponent,
 )
 from ..context import SRPGGame
@@ -22,8 +22,8 @@ from .location_change_mixin import LocationChangeMixin
 
 
 @final
-class ActorEnterSiteSystem(ReactiveProcessor, LocationChangeMixin):
-    """消费 ``ActorEnterSiteAction``：站在地点所在格才能进入。"""
+class EnterSiteSystem(ReactiveProcessor, LocationChangeMixin):
+    """消费 ``EnterSiteAction``：站在地点所在格才能进入。"""
 
     ##########################################################################################
     def __init__(self, game: SRPGGame) -> None:
@@ -33,15 +33,13 @@ class ActorEnterSiteSystem(ReactiveProcessor, LocationChangeMixin):
     ##########################################################################################
     @override
     def get_trigger(self) -> Dict[Matcher, GroupEvent]:
-        return {
-            Matcher(all_of=[ActorEnterSiteAction, ActorComponent]): GroupEvent.ADDED
-        }
+        return {Matcher(all_of=[EnterSiteAction, ActorComponent]): GroupEvent.ADDED}
 
     ##########################################################################################
     @override
     def filter(self, entity: Entity) -> bool:
         """只处理仍挂着动作的角色：动作在处理的同一刻被消费。"""
-        return entity.has(ActorComponent, ActorEnterSiteAction)
+        return entity.has(ActorComponent, EnterSiteAction)
 
     ##########################################################################################
     @override
@@ -51,8 +49,8 @@ class ActorEnterSiteSystem(ReactiveProcessor, LocationChangeMixin):
 
     ##########################################################################################
     def _enter(self, entity: Entity) -> None:
-        action = entity.get(ActorEnterSiteAction)
-        entity.remove(ActorEnterSiteAction)
+        action = entity.get(EnterSiteAction)
+        entity.remove(EnterSiteAction)
         blocker = action_blocker(self._game, entity, action)
         if blocker is not None:
             logger.warning(f"{entity.name} 的进入地点被拒绝: {blocker}")
@@ -84,4 +82,4 @@ class ActorEnterSiteSystem(ReactiveProcessor, LocationChangeMixin):
 
 
 ###############################################################################
-__all__ = ["ActorEnterSiteSystem"]
+__all__ = ["EnterSiteSystem"]

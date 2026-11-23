@@ -9,7 +9,7 @@ from typing import Type
 
 from ..entitas import Entity
 from ..entitas.components import Component
-from ..models import ActorPlanAction
+from ..models import PlanAction
 from .context import SRPGGame
 from .entities.action_rules import action_arguments
 
@@ -18,7 +18,7 @@ from .entities.action_rules import action_arguments
 def mount_command(srpg_game: SRPGGame, actor: Entity, action: Component) -> None:
     """挂上「该想一次」与行为动作；守卫与绑定由调用方先校验。"""
     action_type: Type[Component] = type(action)
-    actor.replace(ActorPlanAction)
+    actor.replace(PlanAction)
     actor.replace(action_type, *action_arguments(action))
 
 

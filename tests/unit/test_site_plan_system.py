@@ -7,12 +7,12 @@ import pytest
 from ai_srpg.game.systems.site_plan_system import SitePlanSystem, site_plan_prompt
 from ai_srpg.llm import AgentLoopResult
 from ai_srpg.models import (
-    ActorExitSiteAction,
-    ActorMoveWithinSiteAction,
-    ActorPlanAction,
-    ActorSpeakAction,
-    ActorTravelAction,
-    ActorWaitAction,
+    ExitSiteAction,
+    MoveWithinSiteAction,
+    PlanAction,
+    SpeakAction,
+    TravelAction,
+    WaitAction,
 )
 from ai_srpg.utils import get_prompt_builders
 from world_fixture import (
@@ -43,7 +43,7 @@ def _capture(monkeypatch: pytest.MonkeyPatch) -> List[Dict[str, Any]]:
             messages=messages,
         )
 
-    monkeypatch.setattr("ai_srpg.game.systems.actor_plan_mixin.agent_loop", _fake)
+    monkeypatch.setattr("ai_srpg.game.systems.plan_mixin.agent_loop", _fake)
     return calls
 
 
@@ -52,7 +52,7 @@ def _planner(game: Any, *actor_names: str) -> SitePlanSystem:
     system = SitePlanSystem(game)
     system.activate()
     for name in actor_names:
-        entity(game, name).replace(ActorPlanAction)
+        entity(game, name).replace(PlanAction)
     return system
 
 
@@ -171,9 +171,9 @@ async def test_handlers_mount_actions_and_keep_one_per_round(
     handlers = call["handlers"]
 
     assert handlers["speak"](content="风变了。") == "（已记下）"
-    assert actor.get(ActorSpeakAction).content == "风变了。"
+    assert actor.get(SpeakAction).content == "风变了。"
     assert "忽略" in str(handlers["exit"]())
-    assert not actor.has(ActorExitSiteAction)
+    assert not actor.has(ExitSiteAction)
 
 
 async def test_move_within_handler_carries_the_destination(
@@ -188,7 +188,7 @@ async def test_move_within_handler_carries_the_destination(
     (call,) = calls
     call["handlers"]["move_within"](destination=FIRE_ROOM)
 
-    assert entity(game, HERE).get(ActorMoveWithinSiteAction).destination == FIRE_ROOM
+    assert entity(game, HERE).get(MoveWithinSiteAction).destination == FIRE_ROOM
 
 
 async def test_travel_action_is_not_allowed_in_this_layer() -> None:
@@ -197,7 +197,7 @@ async def test_travel_action_is_not_allowed_in_this_layer() -> None:
     system = SitePlanSystem(game)
 
     with pytest.raises(ValueError):
-        system.mount_action(entity(game, HERE), ActorTravelAction, 3, 3)
+        system.mount_action(entity(game, HERE), TravelAction, 3, 3)
 
 
 async def test_wait_handler_mounts_wait(
@@ -212,4 +212,4 @@ async def test_wait_handler_mounts_wait(
     (call,) = calls
     call["handlers"]["wait"]()
 
-    assert entity(game, HERE).has(ActorWaitAction)
+    assert entity(game, HERE).has(WaitAction)

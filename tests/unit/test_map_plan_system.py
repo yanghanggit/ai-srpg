@@ -12,12 +12,12 @@ from ai_srpg.game.systems.map_plan_system import (
 from ai_srpg.llm import AgentLoopResult
 from ai_srpg.models import (
     ActorComponent,
-    ActorEnterSiteAction,
-    ActorPlanAction,
-    ActorSpeakAction,
-    ActorTravelAction,
-    ActorWaitAction,
+    EnterSiteAction,
     MapPositionComponent,
+    PlanAction,
+    SpeakAction,
+    TravelAction,
+    WaitAction,
 )
 from ai_srpg.utils import get_prompt_builders
 from world_fixture import (
@@ -44,7 +44,7 @@ def _capture(monkeypatch: pytest.MonkeyPatch) -> List[Dict[str, Any]]:
             messages=messages,
         )
 
-    monkeypatch.setattr("ai_srpg.game.systems.actor_plan_mixin.agent_loop", _fake)
+    monkeypatch.setattr("ai_srpg.game.systems.plan_mixin.agent_loop", _fake)
     return calls
 
 
@@ -52,7 +52,7 @@ def _planner(game: Any, *actor_names: str) -> MapPlanSystem:
     system = MapPlanSystem(game)
     system.activate()
     for name in actor_names:
-        entity(game, name).replace(ActorPlanAction)
+        entity(game, name).replace(PlanAction)
     return system
 
 
@@ -207,10 +207,10 @@ async def test_handlers_mount_actions_and_keep_one_per_round(
     handlers = call["handlers"]
 
     assert handlers["travel"](x=1, y=2) == "（已记下）"
-    travel = actor.get(ActorTravelAction)
+    travel = actor.get(TravelAction)
     assert (travel.x, travel.y) == (1, 2)
     assert "忽略" in str(handlers["enter"](site=CAMP))
-    assert not actor.has(ActorEnterSiteAction)
+    assert not actor.has(EnterSiteAction)
 
 
 async def test_enter_handler_carries_the_site_name(
@@ -225,7 +225,7 @@ async def test_enter_handler_carries_the_site_name(
     (call,) = calls
     call["handlers"]["enter"](site=CAMP)
 
-    assert entity(game, WANDERER).get(ActorEnterSiteAction).site == CAMP
+    assert entity(game, WANDERER).get(EnterSiteAction).site == CAMP
 
 
 async def test_speak_is_not_allowed_in_this_layer() -> None:
@@ -234,7 +234,7 @@ async def test_speak_is_not_allowed_in_this_layer() -> None:
     system = MapPlanSystem(game)
 
     with pytest.raises(ValueError):
-        system.mount_action(entity(game, WANDERER), ActorSpeakAction, "喂")
+        system.mount_action(entity(game, WANDERER), SpeakAction, "喂")
 
 
 async def test_wait_handler_mounts_wait(
@@ -249,7 +249,7 @@ async def test_wait_handler_mounts_wait(
     (call,) = calls
     call["handlers"]["wait"]()
 
-    assert entity(game, WANDERER).has(ActorWaitAction)
+    assert entity(game, WANDERER).has(WaitAction)
 
 
 ###############################################################################

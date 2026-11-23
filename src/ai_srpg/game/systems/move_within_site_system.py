@@ -11,7 +11,7 @@ from ...entitas import Entity, GroupEvent, Matcher, ReactiveProcessor
 from ...models import (
     ActorComponent,
     ActorMovedWithinSite,
-    ActorMoveWithinSiteAction,
+    MoveWithinSiteAction,
 )
 from ..context import SRPGGame
 from ..entities.action_rules import action_blocker
@@ -20,8 +20,8 @@ from .location_change_mixin import LocationChangeMixin
 
 
 @final
-class ActorMoveWithinSiteSystem(ReactiveProcessor, LocationChangeMixin):
-    """消费 ``ActorMoveWithinSiteAction``：校验相邻区域，改所在区域。"""
+class MoveWithinSiteSystem(ReactiveProcessor, LocationChangeMixin):
+    """消费 ``MoveWithinSiteAction``：校验相邻区域，改所在区域。"""
 
     ##########################################################################################
     def __init__(self, game: SRPGGame) -> None:
@@ -32,16 +32,14 @@ class ActorMoveWithinSiteSystem(ReactiveProcessor, LocationChangeMixin):
     @override
     def get_trigger(self) -> Dict[Matcher, GroupEvent]:
         return {
-            Matcher(
-                all_of=[ActorMoveWithinSiteAction, ActorComponent]
-            ): GroupEvent.ADDED
+            Matcher(all_of=[MoveWithinSiteAction, ActorComponent]): GroupEvent.ADDED
         }
 
     ##########################################################################################
     @override
     def filter(self, entity: Entity) -> bool:
         """只处理仍挂着动作的角色：动作在处理的同一刻被消费。"""
-        return entity.has(ActorComponent, ActorMoveWithinSiteAction)
+        return entity.has(ActorComponent, MoveWithinSiteAction)
 
     ##########################################################################################
     @override
@@ -51,8 +49,8 @@ class ActorMoveWithinSiteSystem(ReactiveProcessor, LocationChangeMixin):
 
     ##########################################################################################
     def _move(self, entity: Entity) -> None:
-        action = entity.get(ActorMoveWithinSiteAction)
-        entity.remove(ActorMoveWithinSiteAction)
+        action = entity.get(MoveWithinSiteAction)
+        entity.remove(MoveWithinSiteAction)
         blocker = action_blocker(self._game, entity, action)
         if blocker is not None:
             logger.warning(f"{entity.name} 的区域内移动被拒绝: {blocker}")
@@ -87,4 +85,4 @@ class ActorMoveWithinSiteSystem(ReactiveProcessor, LocationChangeMixin):
 
 
 ###############################################################################
-__all__ = ["ActorMoveWithinSiteSystem"]
+__all__ = ["MoveWithinSiteSystem"]

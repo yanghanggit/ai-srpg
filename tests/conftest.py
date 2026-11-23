@@ -36,9 +36,7 @@ def offline_descriptions(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture(autouse=True)
 def offline_plans(monkeypatch: pytest.MonkeyPatch) -> None:
     """计划系统用 agent loop 会联网；测试里换成空转实现。"""
-    monkeypatch.setattr(
-        "ai_srpg.game.systems.actor_plan_mixin.agent_loop", fake_agent_loop
-    )
+    monkeypatch.setattr("ai_srpg.game.systems.plan_mixin.agent_loop", fake_agent_loop)
 
 
 @pytest.fixture

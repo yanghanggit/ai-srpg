@@ -6,16 +6,16 @@ import pytest
 
 from ai_srpg.game.context import SRPGGame
 from ai_srpg.game.memory import get_agent_memory, insert_messages
-from ai_srpg.game.systems.compact_memory_system import (
+from ai_srpg.game.systems.compact_system import (
     DEFAULT_COMPACT_SUMMARY,
-    CompactMemorySystem,
+    CompactSystem,
 )
-from ai_srpg.models import AIMessage, CompactMemoryAction, HumanMessage, SystemMessage
+from ai_srpg.models import AIMessage, CompactAction, HumanMessage, SystemMessage
 from world_fixture import HERE, build_world, entity
 
 
-def _system(game: SRPGGame) -> CompactMemorySystem:
-    system = CompactMemorySystem(game)
+def _system(game: SRPGGame) -> CompactSystem:
+    system = CompactSystem(game)
     system.activate()
     return system
 
@@ -36,14 +36,14 @@ async def test_action_folds_history_into_one_summary() -> None:
     system = _system(game)
     before = len(get_agent_memory(game, entity(game, HERE)).messages)
 
-    entity(game, HERE).replace(CompactMemoryAction, "")
+    entity(game, HERE).replace(CompactAction, "")
     await system.execute()
 
     messages = get_agent_memory(game, entity(game, HERE)).messages
     assert len(messages) < before
     assert isinstance(messages[0], SystemMessage)
     assert messages[1].content == DEFAULT_COMPACT_SUMMARY
-    assert not entity(game, HERE).has(CompactMemoryAction)
+    assert not entity(game, HERE).has(CompactAction)
 
 
 async def test_given_summary_is_the_one_written() -> None:
@@ -51,7 +51,7 @@ async def test_given_summary_is_the_one_written() -> None:
     _fill(game)
     system = _system(game)
 
-    entity(game, HERE).replace(CompactMemoryAction, "（此前的谈话已折叠）")
+    entity(game, HERE).replace(CompactAction, "（此前的谈话已折叠）")
     await system.execute()
 
     messages = get_agent_memory(game, entity(game, HERE)).messages
@@ -71,7 +71,7 @@ async def test_failure_notices_survive_compaction() -> None:
     )
     system = _system(game)
 
-    entity(game, HERE).replace(CompactMemoryAction, "")
+    entity(game, HERE).replace(CompactAction, "")
     await system.execute()
 
     contents = [
@@ -90,10 +90,10 @@ async def test_entity_without_memory_is_skipped(
     target = entity(game, HERE)
     get_agent_memory(game, target).messages.clear()
 
-    target.replace(CompactMemoryAction, "")
+    target.replace(CompactAction, "")
     await system.execute()
 
-    assert not target.has(CompactMemoryAction)
+    assert not target.has(CompactAction)
     assert get_agent_memory(game, target).messages == []
 
 
@@ -102,6 +102,6 @@ async def test_system_is_registered_in_the_pipeline() -> None:
     game = build_world()
 
     assert any(
-        isinstance(processor, CompactMemorySystem)
+        isinstance(processor, CompactSystem)
         for processor in game.pipeline._execute_processors
     )

@@ -11,10 +11,10 @@ import pytest
 
 from ai_srpg.game.lifecycle import initialize_pipeline
 from ai_srpg.game.pipelines.runner import process_pipeline
-from ai_srpg.game.systems.actor_speak_system import ActorSpeakSystem
-from ai_srpg.game.systems.actor_travel_system import ActorTravelSystem
-from ai_srpg.game.systems.actor_wait_system import ActorWaitSystem
-from ai_srpg.models import ActorTravelAction, ActorWaitAction, MapPositionComponent
+from ai_srpg.game.systems.speak_system import SpeakSystem
+from ai_srpg.game.systems.travel_system import TravelSystem
+from ai_srpg.game.systems.wait_system import WaitSystem
+from ai_srpg.models import MapPositionComponent, TravelAction, WaitAction
 from world_fixture import WANDERER, build_world, entity
 
 _Processor = TypeVar("_Processor")
@@ -34,9 +34,9 @@ async def test_collectors_are_empty_after_a_pass() -> None:
     game = build_world()
     await initialize_pipeline(game)
     actor = entity(game, WANDERER)
-    system = _system_of(game, ActorTravelSystem)
+    system = _system_of(game, TravelSystem)
 
-    actor.replace(ActorTravelAction, 1, 2)
+    actor.replace(TravelAction, 1, 2)
     await process_pipeline(game.pipeline, None)
 
     position = actor.get(MapPositionComponent)
@@ -50,7 +50,7 @@ async def test_second_pass_does_not_see_the_stale_action() -> None:
     await initialize_pipeline(game)
     actor = entity(game, WANDERER)
 
-    actor.replace(ActorTravelAction, 1, 2)
+    actor.replace(TravelAction, 1, 2)
     await process_pipeline(game.pipeline, None)
     await process_pipeline(game.pipeline, None)
 
@@ -64,15 +64,15 @@ async def test_collector_is_cleared_even_when_the_pass_fails(
     """失败路径同样对齐：否则回滚后的下一轮会拿到幽灵实体。"""
     game = build_world()
     await initialize_pipeline(game)
-    wait_system = _system_of(game, ActorWaitSystem)
-    entity(game, WANDERER).replace(ActorWaitAction)
+    wait_system = _system_of(game, WaitSystem)
+    entity(game, WANDERER).replace(WaitAction)
 
     async def _boom(*args: object, **kwargs: object) -> None:
         raise RuntimeError("前面的 system 炸了")
 
-    monkeypatch.setattr(ActorSpeakSystem, "execute", _boom)
+    monkeypatch.setattr(SpeakSystem, "execute", _boom)
     with pytest.raises(RuntimeError):
         await process_pipeline(game.pipeline, None)
 
-    # ActorWaitSystem 收到了动作却没能执行；收集器在失败路径上也要清空
+    # WaitSystem 收到了动作却没能执行；收集器在失败路径上也要清空
     assert wait_system._collector.collected_entities == set()

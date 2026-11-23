@@ -64,7 +64,7 @@ class RefreshEnvironmentAction(Component):
 @final
 @register_action_component_type
 @register_component_type
-class ActorPlanAction(Component):
+class PlanAction(Component):
     """动作：本轮让该角色做一次行动计划。"""
 
 
@@ -72,7 +72,7 @@ class ActorPlanAction(Component):
 @final
 @register_action_component_type
 @register_component_type
-class ActorSpeakAction(Component):
+class SpeakAction(Component):
     """动作：本轮该角色开口说话。"""
 
     content: str
@@ -82,7 +82,7 @@ class ActorSpeakAction(Component):
 @final
 @register_action_component_type
 @register_component_type
-class ActorTravelAction(Component):
+class TravelAction(Component):
     """动作：本轮该角色在大地图上移动到相邻一格（不改变所在层）。"""
 
     x: int
@@ -93,7 +93,7 @@ class ActorTravelAction(Component):
 @final
 @register_action_component_type
 @register_component_type
-class ActorEnterSiteAction(Component):
+class EnterSiteAction(Component):
     """动作：本轮该角色从格子走进那一格上的地点。"""
 
     site: str
@@ -103,7 +103,7 @@ class ActorEnterSiteAction(Component):
 @final
 @register_action_component_type
 @register_component_type
-class ActorExitSiteAction(Component):
+class ExitSiteAction(Component):
     """动作：本轮该角色离开所在地点，回到大地图上地点所在的那一格。"""
 
 
@@ -111,7 +111,7 @@ class ActorExitSiteAction(Component):
 @final
 @register_action_component_type
 @register_component_type
-class ActorMoveWithinSiteAction(Component):
+class MoveWithinSiteAction(Component):
     """动作：本轮该角色在地点内部移动到一个相邻的区域。"""
 
     destination: str
@@ -121,7 +121,7 @@ class ActorMoveWithinSiteAction(Component):
 @final
 @register_action_component_type
 @register_component_type
-class ActorWaitAction(Component):
+class WaitAction(Component):
     """动作：本轮该角色留在原地。"""
 
 
@@ -129,7 +129,7 @@ class ActorWaitAction(Component):
 @final
 @register_action_component_type
 @register_component_type
-class CompactMemoryAction(Component):
+class CompactAction(Component):
     """动作：把该实体的历史记忆折叠成一条摘要；``summary`` 为空时用默认摘要。
 
     动作组件的字段一律必填（组件引擎不套用默认值），「空串表示用默认」由消费方解释。
@@ -141,15 +141,15 @@ class CompactMemoryAction(Component):
 ############################################################################################################
 __all__ = [
     "ACTION_COMPONENT_TYPES",
-    "ActorEnterSiteAction",
-    "ActorExitSiteAction",
-    "ActorMoveWithinSiteAction",
-    "ActorPlanAction",
-    "ActorSpeakAction",
-    "ActorTravelAction",
-    "ActorWaitAction",
-    "CompactMemoryAction",
+    "CompactAction",
+    "EnterSiteAction",
+    "ExitSiteAction",
+    "MoveWithinSiteAction",
+    "PlanAction",
     "RefreshAppearanceAction",
     "RefreshEnvironmentAction",
+    "SpeakAction",
+    "TravelAction",
+    "WaitAction",
     "register_action_component_type",
 ]

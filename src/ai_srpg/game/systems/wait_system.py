@@ -7,15 +7,15 @@
 from typing import Dict, List, final, override
 
 from ...entitas import Entity, GroupEvent, Matcher, ReactiveProcessor
-from ...models import ActorComponent, ActorWaitAction, ActorWaited
+from ...models import ActorComponent, ActorWaited, WaitAction
 from ..context import SRPGGame
 from ..entities.queries import get_site, is_on_map, resolve_stage_entity
 from .stage_broadcast_mixin import StageBroadcastMixin
 
 
 @final
-class ActorWaitSystem(ReactiveProcessor, StageBroadcastMixin):
-    """消费 ``ActorWaitAction``：在所在地广播一条「留在原地」。"""
+class WaitSystem(ReactiveProcessor, StageBroadcastMixin):
+    """消费 ``WaitAction``：在所在地广播一条「留在原地」。"""
 
     ##########################################################################################
     def __init__(self, game: SRPGGame) -> None:
@@ -25,19 +25,19 @@ class ActorWaitSystem(ReactiveProcessor, StageBroadcastMixin):
     ##########################################################################################
     @override
     def get_trigger(self) -> Dict[Matcher, GroupEvent]:
-        return {Matcher(all_of=[ActorWaitAction, ActorComponent]): GroupEvent.ADDED}
+        return {Matcher(all_of=[WaitAction, ActorComponent]): GroupEvent.ADDED}
 
     ##########################################################################################
     @override
     def filter(self, entity: Entity) -> bool:
         """只处理仍挂着动作的角色：动作在处理的同一刻被消费。"""
-        return entity.has(ActorComponent, ActorWaitAction)
+        return entity.has(ActorComponent, WaitAction)
 
     ##########################################################################################
     @override
     async def react(self, entities: List[Entity]) -> None:
         for entity in sorted(entities, key=lambda item: item.index):
-            entity.remove(ActorWaitAction)
+            entity.remove(WaitAction)
             stage_entity = resolve_stage_entity(self._game, entity)
             assert stage_entity is not None, f"{entity.name} 无所在舞台"
             site = get_site(self._game, entity)
@@ -54,4 +54,4 @@ class ActorWaitSystem(ReactiveProcessor, StageBroadcastMixin):
 
 
 ###############################################################################
-__all__ = ["ActorWaitSystem"]
+__all__ = ["WaitSystem"]

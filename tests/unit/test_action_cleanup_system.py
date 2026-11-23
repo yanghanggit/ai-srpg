@@ -26,7 +26,7 @@ from ecs_testing import Position
 @final
 @register_action_component_type
 @register_component_type
-class SpeakAction(Component):
+class SpeakTestAction(Component):
     """测试用动作组件：只携带发起者名字。"""
 
     name: str
@@ -51,7 +51,7 @@ class AnnounceAction(Component):
 
 
 _TEST_ACTIONS: tuple[Type[Component], ...] = (
-    SpeakAction,
+    SpeakTestAction,
     WhisperAction,
     AnnounceAction,
 )
@@ -118,11 +118,11 @@ class TestActionCleanupSystem:
     ) -> None:
         """正常 execute 路径也应清理动作组件。"""
         entity = context.create_entity()
-        entity.add(SpeakAction, "alice")
+        entity.add(SpeakTestAction, "alice")
 
         await system.execute()
 
-        assert not entity.has(SpeakAction)
+        assert not entity.has(SpeakTestAction)
 
     def test_cleanup_empty_world(self, system: ActionCleanupSystem) -> None:
         """无实体时 cleanup() 应正常完成，不抛出任何异常。"""
@@ -144,13 +144,13 @@ class TestActionCleanupSystem:
     ) -> None:
         """单实体同时持有多个动作组件，执行后应全部被移除。"""
         entity = context.create_entity()
-        entity.add(SpeakAction, "alice")
+        entity.add(SpeakTestAction, "alice")
         entity.add(WhisperAction, "alice")
         entity.add(AnnounceAction, "alice")
 
         system.cleanup()
 
-        assert not entity.has(SpeakAction)
+        assert not entity.has(SpeakTestAction)
         assert not entity.has(WhisperAction)
         assert not entity.has(AnnounceAction)
 
@@ -173,10 +173,10 @@ class TestActionCleanupSystem:
     ) -> None:
         """实体同时持有动作组件与非动作组件，执行后非动作组件应保留。"""
         entity = context.create_entity()
-        entity.add(SpeakAction, "alice")
+        entity.add(SpeakTestAction, "alice")
         entity.add(Position, 1.0, 2.0)
 
         system.cleanup()
 
-        assert not entity.has(SpeakAction)
+        assert not entity.has(SpeakTestAction)
         assert entity.has(Position)

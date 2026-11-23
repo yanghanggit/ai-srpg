@@ -1,7 +1,7 @@
-"""舞台心跳 system：发布链路与「第一段业务」的接线。
+"""舞台心跳 system：可插拔样板与发布链路的独立验证。
 
 覆盖四件事：每个有角色的区域只广播一次、广播同时进入 agent 记忆、大地图
-不参与、以及事件经 ``SessionEventSink`` 落进会话历史并带上当前 job 标识。
+不参与、以及独立执行时事件经 ``SessionEventSink`` 落进会话历史并带上当前 job 标识。
 """
 
 from typing import Any, List
@@ -136,8 +136,8 @@ async def test_empty_game_publishes_nothing() -> None:
 
 
 ###############################################################################
-async def test_pipeline_writes_session_history_with_job_id() -> None:
-    """闭环：pipeline → 事件出口 → 会话历史，消息带当前 job 与游戏上下文。"""
+async def test_stage_pulse_writes_session_history_with_job_id() -> None:
+    """闭环：舞台心跳 → 事件出口 → 会话历史，消息带当前 job 与游戏上下文。"""
     store = _FakeStore()
     room = Room(room_id="alice", owner="alice")
     session = PlayerSession(user_name="alice", room_id="alice")
@@ -151,7 +151,7 @@ async def test_pipeline_writes_session_history_with_job_id() -> None:
 
     token = set_current_job(_FakeJob(job_id=7))
     try:
-        await process_pipeline(game.pipeline, None)
+        await StagePulseSystem(game).execute()
     finally:
         reset_current_job(token)
 
@@ -165,14 +165,10 @@ async def test_pipeline_writes_session_history_with_job_id() -> None:
     assert message.agent_event.message == "舞台.营地：当前在场 角色.无名。"
 
 
-async def test_stage_pulse_runs_between_prologue_and_cleanup() -> None:
-    """装配检查：业务段里确实挂着舞台心跳，且位于前置与清理之间。"""
+async def test_stage_pulse_is_not_in_the_default_pipeline() -> None:
+    """舞台心跳是可插拔样例：默认管线不挂它，但它的独立测试仍然保留。"""
     game = create_srpg_game(name="Game1")
 
     result = await process_pipeline(game.pipeline, None)
 
-    assert "StagePulseSystem" in result.ran
-    assert result.ran.index("PrologueSystem") < result.ran.index("StagePulseSystem")
-    assert result.ran.index("StagePulseSystem") < result.ran.index(
-        "ActionCleanupSystem"
-    )
+    assert "StagePulseSystem" not in result.ran

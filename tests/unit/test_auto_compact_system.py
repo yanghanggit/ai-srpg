@@ -8,8 +8,8 @@ from ai_srpg.game.systems.auto_compact_system import (
     COMPACT_THRESHOLD,
     AutoCompactSystem,
 )
-from ai_srpg.game.systems.compact_memory_system import CompactMemorySystem
-from ai_srpg.models import AIMessage, CompactMemoryAction, HumanMessage
+from ai_srpg.game.systems.compact_system import CompactSystem
+from ai_srpg.models import AIMessage, CompactAction, HumanMessage
 from world_fixture import HERE, OTHER, build_world, entity
 
 
@@ -36,7 +36,7 @@ async def test_crowded_memory_gets_a_compaction_action() -> None:
 
     await system.execute()
 
-    assert entity(game, HERE).has(CompactMemoryAction)
+    assert entity(game, HERE).has(CompactAction)
 
 
 async def test_roomy_memory_is_left_alone() -> None:
@@ -46,7 +46,7 @@ async def test_roomy_memory_is_left_alone() -> None:
 
     await system.execute()
 
-    assert not entity(game, HERE).has(CompactMemoryAction)
+    assert not entity(game, HERE).has(CompactAction)
 
 
 async def test_exactly_at_the_threshold_counts_as_crowded() -> None:
@@ -56,7 +56,7 @@ async def test_exactly_at_the_threshold_counts_as_crowded() -> None:
 
     await system.execute()
 
-    assert entity(game, HERE).has(CompactMemoryAction)
+    assert entity(game, HERE).has(CompactAction)
 
 
 async def test_only_the_crowded_ones_get_actions() -> None:
@@ -67,8 +67,8 @@ async def test_only_the_crowded_ones_get_actions() -> None:
 
     await system.execute()
 
-    assert entity(game, HERE).has(CompactMemoryAction)
-    assert not entity(game, OTHER).has(CompactMemoryAction)
+    assert entity(game, HERE).has(CompactAction)
+    assert not entity(game, OTHER).has(CompactAction)
 
 
 async def test_short_memory_is_not_worth_compacting() -> None:
@@ -85,19 +85,19 @@ async def test_short_memory_is_not_worth_compacting() -> None:
 
     await system.execute()
 
-    assert not actor.has(CompactMemoryAction)
+    assert not actor.has(CompactAction)
 
 
 async def test_already_scheduled_memory_is_not_mounted_twice() -> None:
     game = build_world()
     _fill(game, HERE, ratio=0.9)
     actor = entity(game, HERE)
-    actor.replace(CompactMemoryAction, "（已有的摘要）")
+    actor.replace(CompactAction, "（已有的摘要）")
     system = _system(game)
 
     await system.execute()
 
-    assert actor.get(CompactMemoryAction).summary == "（已有的摘要）"
+    assert actor.get(CompactAction).summary == "（已有的摘要）"
 
 
 ###############################################################################
@@ -109,7 +109,7 @@ async def test_action_is_consumed_in_the_same_pass() -> None:
     actor = entity(game, HERE)
     before = len(get_agent_memory(game, actor).messages)
     auto = _system(game)
-    consumer = CompactMemorySystem(game)
+    consumer = CompactSystem(game)
     consumer.activate()
 
     await auto.execute()
@@ -119,7 +119,7 @@ async def test_action_is_consumed_in_the_same_pass() -> None:
     assert len(memory.messages) == 2
     assert len(memory.messages) < before
     assert memory.context_usage_ratio == 0.0
-    assert not actor.has(CompactMemoryAction)
+    assert not actor.has(CompactAction)
 
 
 async def test_batch_insert_keeps_the_ratio_signal() -> None:

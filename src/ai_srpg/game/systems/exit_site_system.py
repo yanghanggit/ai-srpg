@@ -1,6 +1,6 @@
-"""大地图移动：在大地图上走到相邻一格，只改坐标，不改变所在层。
+"""离开地点：从地点回到大地图上地点所在的那一格，无论在里面走得多深。
 
-走到地点所在的格子不算进入地点——那只是站在地点上，进入地点要靠 ``enter``。
+地点对外只占一格，所以离开地点不需要「先走到入口」——落点固定是地点所在的格。
 """
 
 from typing import Dict, List, final, override
@@ -10,19 +10,19 @@ from loguru import logger
 from ...entitas import Entity, GroupEvent, Matcher, ReactiveProcessor
 from ...models import (
     ActorComponent,
-    ActorTravelAction,
-    ActorTraveled,
+    ActorExitedSite,
+    ExitSiteAction,
     MapPositionComponent,
 )
 from ..context import SRPGGame
 from ..entities.action_rules import action_blocker
-from ..entities.queries import get_map_position
+from ..entities.queries import get_map_position, get_map_stage, get_site
 from .location_change_mixin import LocationChangeMixin
 
 
 @final
-class ActorTravelSystem(ReactiveProcessor, LocationChangeMixin):
-    """消费 ``ActorTravelAction``：校验相邻、改坐标、说给三处听。"""
+class ExitSiteSystem(ReactiveProcessor, LocationChangeMixin):
+    """消费 ``ExitSiteAction``：摘掉地点归属，站到地点所在格。"""
 
     ##########################################################################################
     def __init__(self, game: SRPGGame) -> None:
@@ -32,54 +32,56 @@ class ActorTravelSystem(ReactiveProcessor, LocationChangeMixin):
     ##########################################################################################
     @override
     def get_trigger(self) -> Dict[Matcher, GroupEvent]:
-        return {Matcher(all_of=[ActorTravelAction, ActorComponent]): GroupEvent.ADDED}
+        return {Matcher(all_of=[ExitSiteAction, ActorComponent]): GroupEvent.ADDED}
 
     ##########################################################################################
     @override
     def filter(self, entity: Entity) -> bool:
         """只处理仍挂着动作的角色：动作在处理的同一刻被消费。"""
-        return entity.has(ActorComponent, ActorTravelAction)
+        return entity.has(ActorComponent, ExitSiteAction)
 
     ##########################################################################################
     @override
     async def react(self, entities: List[Entity]) -> None:
         for entity in sorted(entities, key=lambda item: item.index):
-            self._travel(entity)
+            self._exit(entity)
 
     ##########################################################################################
-    def _travel(self, entity: Entity) -> None:
-        action = entity.get(ActorTravelAction)
-        entity.remove(ActorTravelAction)
+    def _exit(self, entity: Entity) -> None:
+        action = entity.get(ExitSiteAction)
+        entity.remove(ExitSiteAction)
         blocker = action_blocker(self._game, entity, action)
         if blocker is not None:
-            logger.warning(f"{entity.name} 的大地图移动被拒绝: {blocker}")
+            logger.warning(f"{entity.name} 的离开地点被拒绝: {blocker}")
             return
 
-        target = (action.x, action.y)
-        from_label = self.map_label(entity)
-        map_stage = get_map_position(self._game, entity)[0]
-        event = ActorTraveled(
-            message=f"你从{from_label}走到{map_stage.name}({target[0]},{target[1]})。",
+        site = get_site(self._game, entity)
+        assert site is not None, f"{entity.name} 在地点里却没有地点"
+        map_stage = get_map_stage(self._game, site.name)
+        _, position = get_map_position(self._game, entity)
+
+        to_label = f"{map_stage.name}({position.x},{position.y})"
+        event = ActorExitedSite(
+            message=f"你从{site.name}走到{to_label}。",
             actor=entity.name,
             stage=map_stage.name,
-            x=target[0],
-            y=target[1],
+            site=site.name,
         )
         self.announce_departure(
-            entity, stage=map_stage, from_label=from_label, agent_event=event
+            entity, stage=site, from_label=site.name, agent_event=event
         )
 
-        entity.replace(MapPositionComponent, target[0], target[1])
+        entity.replace(ActorComponent, map_stage.name)
+        entity.replace(MapPositionComponent, position.x, position.y)
 
-        to_label = self.map_label(entity)
         self.announce_arrival(
             entity, stage=map_stage, to_label=to_label, agent_event=event
         )
         self.record_journey(
-            entity, from_label=from_label, to_label=to_label, agent_event=event
+            entity, from_label=site.name, to_label=to_label, agent_event=event
         )
         self.publish(event)
 
 
 ###############################################################################
-__all__ = ["ActorTravelSystem"]
+__all__ = ["ExitSiteSystem"]

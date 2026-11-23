@@ -10,10 +10,10 @@ from ...entitas.components import Component
 from ...llm import ToolDefinition, ToolFunction
 from ...models import (
     ActorComponent,
-    ActorEnterSiteAction,
-    ActorPlanAction,
-    ActorTravelAction,
-    ActorWaitAction,
+    EnterSiteAction,
+    PlanAction,
+    TravelAction,
+    WaitAction,
 )
 from ...utils import prompt_builder
 from ..context import SRPGGame
@@ -24,7 +24,7 @@ from ..entities.queries import (
     get_visible_cells,
     is_on_map,
 )
-from .actor_plan_mixin import ActorPlanMixin
+from .plan_mixin import PlanMixin
 
 ############################################################################################################
 # 大地图上能发起的行为
@@ -66,9 +66,9 @@ _WAIT_TOOL: Final[ToolDefinition] = ToolDefinition(
 _MAP_TOOLS: Final[List[ToolDefinition]] = [_TRAVEL_TOOL, _ENTER_TOOL, _WAIT_TOOL]
 
 _MAP_ACTIONS: Final[Tuple[Type[Component], ...]] = (
-    ActorTravelAction,
-    ActorEnterSiteAction,
-    ActorWaitAction,
+    TravelAction,
+    EnterSiteAction,
+    WaitAction,
 )
 
 
@@ -104,26 +104,24 @@ def map_plan_prompt(
 
 ############################################################################################################
 @final
-class MapPlanSystem(ReactiveProcessor, ActorPlanMixin):
-    """消费 ``ActorPlanAction``：给站在大地图上的角色跑一轮计划。"""
+class MapPlanSystem(ReactiveProcessor, PlanMixin):
+    """消费 ``PlanAction``：给站在大地图上的角色跑一轮计划。"""
 
     ##########################################################################################
     def __init__(self, game: SRPGGame) -> None:
         ReactiveProcessor.__init__(self, game)
-        ActorPlanMixin.__init__(self, game)
+        PlanMixin.__init__(self, game)
 
     ##########################################################################################
     @override
     def get_trigger(self) -> Dict[Matcher, GroupEvent]:
-        return {Matcher(all_of=[ActorPlanAction, ActorComponent]): GroupEvent.ADDED}
+        return {Matcher(all_of=[PlanAction, ActorComponent]): GroupEvent.ADDED}
 
     ##########################################################################################
     @override
     def filter(self, entity: Entity) -> bool:
         """只处理站在大地图上、且挂着计划动作的角色。"""
-        return entity.has(ActorComponent, ActorPlanAction) and is_on_map(
-            self._game, entity
-        )
+        return entity.has(ActorComponent, PlanAction) and is_on_map(self._game, entity)
 
     ##########################################################################################
     @override
@@ -135,7 +133,7 @@ class MapPlanSystem(ReactiveProcessor, ActorPlanMixin):
     async def react(self, entities: List[Entity]) -> None:
         for entity in sorted(entities, key=lambda item: item.index):
             # 「该想一次」在处理的同一刻被消费；行为动作留给后面的 system
-            entity.remove(ActorPlanAction)
+            entity.remove(PlanAction)
             record_message = map_plan_input(self._game, entity, compact=True)
             decided = self.predecided_action(entity)
             if decided is not None:
@@ -155,9 +153,9 @@ class MapPlanSystem(ReactiveProcessor, ActorPlanMixin):
         self, entity: Entity
     ) -> Dict[str, Callable[..., Awaitable[str] | str]]:
         return {
-            "travel": lambda x, y: self.mount_action(entity, ActorTravelAction, x, y),
-            "enter": lambda site: self.mount_action(entity, ActorEnterSiteAction, site),
-            "wait": lambda: self.mount_action(entity, ActorWaitAction),
+            "travel": lambda x, y: self.mount_action(entity, TravelAction, x, y),
+            "enter": lambda site: self.mount_action(entity, EnterSiteAction, site),
+            "wait": lambda: self.mount_action(entity, WaitAction),
         }
 
 

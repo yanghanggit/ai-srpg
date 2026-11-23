@@ -12,24 +12,24 @@ import pytest
 from ai_srpg.game.command import mount_command
 from ai_srpg.game.context import SRPGGame
 from ai_srpg.game.memory import get_agent_memory
-from ai_srpg.game.systems.actor_plan_mixin import ACK
-from ai_srpg.game.systems.actor_speak_system import ActorSpeakSystem
-from ai_srpg.game.systems.actor_travel_system import ActorTravelSystem
 from ai_srpg.game.systems.map_plan_system import MapPlanSystem
+from ai_srpg.game.systems.plan_mixin import ACK
 from ai_srpg.game.systems.site_plan_system import SitePlanSystem
+from ai_srpg.game.systems.speak_system import SpeakSystem
+from ai_srpg.game.systems.travel_system import TravelSystem
 from ai_srpg.llm import AgentLoopResult
 from ai_srpg.models import (
     ActorComponent,
-    ActorEnterSiteAction,
-    ActorPlanAction,
-    ActorSpeakAction,
-    ActorTravelAction,
-    ActorWaitAction,
     AIMessage,
     ChatMessage,
+    EnterSiteAction,
     HumanMessage,
     MapPositionComponent,
+    PlanAction,
+    SpeakAction,
     ToolMessage,
+    TravelAction,
+    WaitAction,
 )
 from world_fixture import (
     CAMP,
@@ -61,10 +61,10 @@ def test_mount_command_mounts_plan_and_behaviour() -> None:
     game = build_world()
     actor = entity(game, HERE)
 
-    mount_command(game, actor, ActorSpeakAction(content="火还能撑多久？"))
+    mount_command(game, actor, SpeakAction(content="火还能撑多久？"))
 
-    assert actor.has(ActorPlanAction)
-    assert actor.get(ActorSpeakAction).content == "火还能撑多久？"
+    assert actor.has(PlanAction)
+    assert actor.get(SpeakAction).content == "火还能撑多久？"
 
 
 ###############################################################################
@@ -76,10 +76,10 @@ async def test_predecided_command_writes_the_three_messages(
     def _boom(**kwargs: Any) -> AgentLoopResult:
         raise AssertionError("接管时不应该再问模型")
 
-    monkeypatch.setattr("ai_srpg.game.systems.actor_plan_mixin.agent_loop", _boom)
+    monkeypatch.setattr("ai_srpg.game.systems.plan_mixin.agent_loop", _boom)
     game = build_world()
     system = _planner(game, SitePlanSystem)
-    mount_command(game, entity(game, HERE), ActorSpeakAction(content="喂"))
+    mount_command(game, entity(game, HERE), SpeakAction(content="喂"))
 
     await system.execute()
 
@@ -96,7 +96,7 @@ async def test_recorded_input_is_the_compressed_context(
     """记忆里留摘要：环境收成一句、在场者只留名字。"""
     game = build_world()
     system = _planner(game, SitePlanSystem)
-    mount_command(game, entity(game, HERE), ActorSpeakAction(content="喂"))
+    mount_command(game, entity(game, HERE), SpeakAction(content="喂"))
 
     await system.execute()
 
@@ -110,7 +110,7 @@ async def test_recorded_input_is_the_compressed_context(
 async def test_recorded_tool_call_matches_the_action() -> None:
     game = build_world()
     system = _planner(game, MapPlanSystem)
-    mount_command(game, entity(game, WANDERER), ActorTravelAction(x=1, y=2))
+    mount_command(game, entity(game, WANDERER), TravelAction(x=1, y=2))
 
     await system.execute()
 
@@ -130,7 +130,7 @@ async def test_enter_command_records_the_site_name() -> None:
     actor = entity(game, WANDERER)
     actor.replace(MapPositionComponent, 2, 2)
     system = _planner(game, MapPlanSystem)
-    mount_command(game, actor, ActorEnterSiteAction(site=CAMP))
+    mount_command(game, actor, EnterSiteAction(site=CAMP))
 
     await system.execute()
 
@@ -141,7 +141,7 @@ async def test_enter_command_records_the_site_name() -> None:
 async def test_wait_command_records_no_arguments() -> None:
     game = build_world()
     system = _planner(game, SitePlanSystem)
-    mount_command(game, entity(game, HERE), ActorWaitAction())
+    mount_command(game, entity(game, HERE), WaitAction())
 
     await system.execute()
 
@@ -168,15 +168,15 @@ async def test_plan_records_the_same_input_as_a_command(
             start_message=start_message,
         )
 
-    monkeypatch.setattr("ai_srpg.game.systems.actor_plan_mixin.agent_loop", _fake)
+    monkeypatch.setattr("ai_srpg.game.systems.plan_mixin.agent_loop", _fake)
     planned = build_world()
     system = _planner(planned, SitePlanSystem)
-    entity(planned, HERE).replace(ActorPlanAction)
+    entity(planned, HERE).replace(PlanAction)
     await system.execute()
 
     commanded = build_world()
     command_system = _planner(commanded, SitePlanSystem)
-    mount_command(commanded, entity(commanded, HERE), ActorSpeakAction(content="喂"))
+    mount_command(commanded, entity(commanded, HERE), SpeakAction(content="喂"))
     await command_system.execute()
 
     assert _memory(planned, HERE)[1].content == _memory(commanded, HERE)[1].content
@@ -189,9 +189,9 @@ async def test_command_travel_takes_effect_and_is_announced() -> None:
     game = build_world()
     actor = entity(game, WANDERER)
     plan_system = _planner(game, MapPlanSystem)
-    move_system = ActorTravelSystem(game)
+    move_system = TravelSystem(game)
     move_system.activate()
-    mount_command(game, actor, ActorTravelAction(x=1, y=2))
+    mount_command(game, actor, TravelAction(x=1, y=2))
 
     await plan_system.execute()
     await move_system.execute()
@@ -204,9 +204,9 @@ async def test_command_travel_takes_effect_and_is_announced() -> None:
 async def test_command_speak_reaches_the_other_actor() -> None:
     game = build_world()
     plan_system = _planner(game, SitePlanSystem)
-    speak_system = ActorSpeakSystem(game)
+    speak_system = SpeakSystem(game)
     speak_system.activate()
-    mount_command(game, entity(game, HERE), ActorSpeakAction(content="火还能撑多久？"))
+    mount_command(game, entity(game, HERE), SpeakAction(content="火还能撑多久？"))
 
     await plan_system.execute()
     await speak_system.execute()
@@ -219,10 +219,10 @@ async def test_command_matching_the_wrong_layer_is_still_guarded() -> None:
     game = build_world()
     actor = entity(game, WANDERER)
     plan_system = _planner(game, MapPlanSystem)
-    mount_command(game, actor, ActorSpeakAction(content="有人吗？"))
+    mount_command(game, actor, SpeakAction(content="有人吗？"))
 
     await plan_system.execute()
 
     # 大地图上的计划只认大地图动词，说话动作留在原地、无人处理
-    assert actor.has(ActorSpeakAction)
+    assert actor.has(SpeakAction)
     assert actor.get(ActorComponent).current_stage == "舞台.大地图"

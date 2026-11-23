@@ -8,7 +8,7 @@ from typing import Dict, List, final, override
 from loguru import logger
 
 from ...entitas import Entity, GroupEvent, Matcher, ReactiveProcessor
-from ...models import ActorComponent, ActorSpeakAction, ActorSpoke
+from ...models import ActorComponent, ActorSpoke, SpeakAction
 from ..context import SRPGGame
 from ..entities.action_rules import action_blocker
 from ..entities.queries import get_site, resolve_stage_entity
@@ -16,8 +16,8 @@ from .stage_broadcast_mixin import StageBroadcastMixin
 
 
 @final
-class ActorSpeakSystem(ReactiveProcessor, StageBroadcastMixin):
-    """消费 ``ActorSpeakAction``：在所在区域里广播这句话。"""
+class SpeakSystem(ReactiveProcessor, StageBroadcastMixin):
+    """消费 ``SpeakAction``：在所在区域里广播这句话。"""
 
     ##########################################################################################
     def __init__(self, game: SRPGGame) -> None:
@@ -27,20 +27,20 @@ class ActorSpeakSystem(ReactiveProcessor, StageBroadcastMixin):
     ##########################################################################################
     @override
     def get_trigger(self) -> Dict[Matcher, GroupEvent]:
-        return {Matcher(all_of=[ActorSpeakAction, ActorComponent]): GroupEvent.ADDED}
+        return {Matcher(all_of=[SpeakAction, ActorComponent]): GroupEvent.ADDED}
 
     ##########################################################################################
     @override
     def filter(self, entity: Entity) -> bool:
         """只处理仍挂着动作的角色：动作在处理的同一刻被消费。"""
-        return entity.has(ActorComponent, ActorSpeakAction)
+        return entity.has(ActorComponent, SpeakAction)
 
     ##########################################################################################
     @override
     async def react(self, entities: List[Entity]) -> None:
         for entity in sorted(entities, key=lambda item: item.index):
-            action = entity.get(ActorSpeakAction)
-            entity.remove(ActorSpeakAction)
+            action = entity.get(SpeakAction)
+            entity.remove(SpeakAction)
             blocker = action_blocker(self._game, entity, action)
             if blocker is not None:
                 logger.warning(f"{entity.name} 的说话被拒绝: {blocker}")
@@ -62,4 +62,4 @@ class ActorSpeakSystem(ReactiveProcessor, StageBroadcastMixin):
 
 
 ###############################################################################
-__all__ = ["ActorSpeakSystem"]
+__all__ = ["SpeakSystem"]

@@ -1,7 +1,7 @@
 """自动压缩：记忆占满到阈值，就替它挂上压缩动作。
 
 阈值是玩法策略，不是机制：这里只决定「谁的记忆该折一次」，怎么折仍由
-``CompactMemorySystem`` 负责。两个 system 分开，是为了让「何时压」可以随玩法改，
+``CompactSystem`` 负责。两个 system 分开，是为了让「何时压」可以随玩法改，
 而「怎么压」保持唯一。
 
 它在计划系统之前运行，于是压缩发生在「这一轮开始时的记忆状态」上——本轮新产生的
@@ -13,7 +13,7 @@ from typing import Final, final, override
 from loguru import logger
 
 from ...entitas import Entity, ExecuteProcessor
-from ...models import CompactMemoryAction
+from ...models import CompactAction
 from ..memory import get_agent_memory
 from .system_mixin import SystemMixin
 
@@ -32,12 +32,12 @@ class AutoCompactSystem(SystemMixin, ExecuteProcessor):
     @override
     async def execute(self) -> None:
         for entity in self._crowded():
-            if entity.has(CompactMemoryAction):
+            if entity.has(CompactAction):
                 continue
             logger.info(
                 f"{entity.name} 的上下文占比 {get_agent_memory(self._game, entity).context_usage_ratio:.2%}，安排压缩"
             )
-            entity.replace(CompactMemoryAction, "")
+            entity.replace(CompactAction, "")
 
     ##########################################################################################################
     def _crowded(self) -> list[Entity]:

@@ -8,23 +8,23 @@ from typing import Type, TypeVar
 
 from ai_srpg.entitas import ReactiveProcessor
 from ai_srpg.game.context import SRPGGame
-from ai_srpg.game.systems.actor_enter_site_system import ActorEnterSiteSystem
-from ai_srpg.game.systems.actor_exit_site_system import ActorExitSiteSystem
-from ai_srpg.game.systems.actor_move_within_site_system import (
-    ActorMoveWithinSiteSystem,
+from ai_srpg.game.systems.enter_site_system import EnterSiteSystem
+from ai_srpg.game.systems.exit_site_system import ExitSiteSystem
+from ai_srpg.game.systems.move_within_site_system import (
+    MoveWithinSiteSystem,
 )
-from ai_srpg.game.systems.actor_speak_system import ActorSpeakSystem
-from ai_srpg.game.systems.actor_travel_system import ActorTravelSystem
-from ai_srpg.game.systems.actor_wait_system import ActorWaitSystem
+from ai_srpg.game.systems.speak_system import SpeakSystem
+from ai_srpg.game.systems.travel_system import TravelSystem
+from ai_srpg.game.systems.wait_system import WaitSystem
 from ai_srpg.models import (
     ActorComponent,
-    ActorEnterSiteAction,
-    ActorExitSiteAction,
-    ActorMoveWithinSiteAction,
-    ActorSpeakAction,
-    ActorTravelAction,
-    ActorWaitAction,
+    EnterSiteAction,
+    ExitSiteAction,
     MapPositionComponent,
+    MoveWithinSiteAction,
+    SpeakAction,
+    TravelAction,
+    WaitAction,
 )
 from world_fixture import (
     CAMP,
@@ -55,9 +55,9 @@ def _system(system_type: Type[_Processor], game: SRPGGame) -> _Processor:
 async def test_speak_reaches_the_region_only() -> None:
     game = build_world()
     actor = entity(game, HERE)
-    system = _system(ActorSpeakSystem, game)
+    system = _system(SpeakSystem, game)
 
-    actor.replace(ActorSpeakAction, "风变了。")
+    actor.replace(SpeakAction, "风变了。")
     await system.execute()
 
     assert heard(game, OTHER) == [f"{HERE}说：风变了。"]
@@ -71,9 +71,9 @@ async def test_speak_on_the_map_is_not_a_thing() -> None:
     """大地图不是场所：站在大地图上说话，谁也不会听见，包括大地图自己。"""
     game = build_world()
     actor = entity(game, WANDERER)
-    system = _system(ActorSpeakSystem, game)
+    system = _system(SpeakSystem, game)
 
-    actor.replace(ActorSpeakAction, "有人吗？")
+    actor.replace(SpeakAction, "有人吗？")
     await system.execute()
 
     assert heard(game, HERE) == []
@@ -84,9 +84,9 @@ async def test_wait_on_the_map_tells_nobody() -> None:
     """大地图上没有听众：原地不动只是「这轮没动」，不产生任何广播。"""
     game = build_world()
     actor = entity(game, WANDERER)
-    system = _system(ActorWaitSystem, game)
+    system = _system(WaitSystem, game)
 
-    actor.replace(ActorWaitAction)
+    actor.replace(WaitAction)
     await system.execute()
 
     assert heard(game, MAP) == []
@@ -96,9 +96,9 @@ async def test_wait_on_the_map_tells_nobody() -> None:
 async def test_wait_tells_others_that_nothing_happened() -> None:
     game = build_world()
     actor = entity(game, HERE)
-    system = _system(ActorWaitSystem, game)
+    system = _system(WaitSystem, game)
 
-    actor.replace(ActorWaitAction)
+    actor.replace(WaitAction)
     await system.execute()
 
     assert heard(game, OTHER) == [f"{HERE}留在原地。"]
@@ -112,9 +112,9 @@ async def test_wait_tells_others_that_nothing_happened() -> None:
 async def test_travel_moves_one_cell_on_the_map() -> None:
     game = build_world()
     actor = entity(game, WANDERER)
-    system = _system(ActorTravelSystem, game)
+    system = _system(TravelSystem, game)
 
-    actor.replace(ActorTravelAction, 1, 2)
+    actor.replace(TravelAction, 1, 2)
     await system.execute()
 
     position = actor.get(MapPositionComponent)
@@ -131,9 +131,9 @@ async def test_travel_can_stop_on_a_site_cell() -> None:
     """站在地点所在格：走到地点格不算进入地点，仍然站在大地图上。"""
     game = build_world()
     actor = entity(game, WANDERER)
-    system = _system(ActorTravelSystem, game)
+    system = _system(TravelSystem, game)
 
-    actor.replace(ActorTravelAction, 2, 2)
+    actor.replace(TravelAction, 2, 2)
     await system.execute()
 
     position = actor.get(MapPositionComponent)
@@ -144,9 +144,9 @@ async def test_travel_can_stop_on_a_site_cell() -> None:
 async def test_travel_rejects_non_adjacent_cells() -> None:
     game = build_world()
     actor = entity(game, WANDERER)
-    system = _system(ActorTravelSystem, game)
+    system = _system(TravelSystem, game)
 
-    actor.replace(ActorTravelAction, 4, 4)
+    actor.replace(TravelAction, 4, 4)
     await system.execute()
 
     position = actor.get(MapPositionComponent)
@@ -158,9 +158,9 @@ async def test_travel_requires_being_on_the_map() -> None:
     """地点内部的人收到大地图移动动作也不会动：层级不符的动作不生效。"""
     game = build_world()
     actor = entity(game, HERE)
-    system = _system(ActorTravelSystem, game)
+    system = _system(TravelSystem, game)
 
-    actor.replace(ActorTravelAction, 3, 3)
+    actor.replace(TravelAction, 3, 3)
     await system.execute()
 
     assert actor.get(ActorComponent).current_stage == CAMP
@@ -174,9 +174,9 @@ async def test_enter_requires_standing_on_the_site_cell() -> None:
     game = build_world()
     actor = entity(game, WANDERER)
     actor.replace(MapPositionComponent, 2, 2)
-    system = _system(ActorEnterSiteSystem, game)
+    system = _system(EnterSiteSystem, game)
 
-    actor.replace(ActorEnterSiteAction, CAMP)
+    actor.replace(EnterSiteAction, CAMP)
     await system.execute()
 
     assert actor.get(ActorComponent).current_stage == CAMP
@@ -190,9 +190,9 @@ async def test_enter_requires_standing_on_the_site_cell() -> None:
 async def test_enter_is_rejected_from_another_cell() -> None:
     game = build_world()
     actor = entity(game, WANDERER)
-    system = _system(ActorEnterSiteSystem, game)
+    system = _system(EnterSiteSystem, game)
 
-    actor.replace(ActorEnterSiteAction, CAMP)
+    actor.replace(EnterSiteAction, CAMP)
     await system.execute()
 
     assert actor.get(ActorComponent).current_stage == MAP
@@ -202,9 +202,9 @@ async def test_enter_is_rejected_from_another_cell() -> None:
 async def test_exit_lands_on_the_site_cell() -> None:
     game = build_world()
     actor = entity(game, HERE)
-    system = _system(ActorExitSiteSystem, game)
+    system = _system(ExitSiteSystem, game)
 
-    actor.replace(ActorExitSiteAction)
+    actor.replace(ExitSiteAction)
     await system.execute()
 
     assert actor.get(ActorComponent).current_stage == MAP
@@ -220,8 +220,8 @@ async def test_exit_from_a_deeper_area_still_lands_on_the_site_cell() -> None:
     game = build_world()
     actor = entity(game, HERE)
     actor.replace(ActorComponent, FIRE_ROOM)
-    system = _system(ActorExitSiteSystem, game)
-    actor.replace(ActorExitSiteAction)
+    system = _system(ExitSiteSystem, game)
+    actor.replace(ExitSiteAction)
 
     await system.execute()
 
@@ -236,9 +236,9 @@ async def test_exit_from_a_deeper_area_still_lands_on_the_site_cell() -> None:
 async def test_move_within_goes_to_a_child_area() -> None:
     game = build_world()
     actor = entity(game, HERE)
-    system = _system(ActorMoveWithinSiteSystem, game)
+    system = _system(MoveWithinSiteSystem, game)
 
-    actor.replace(ActorMoveWithinSiteAction, FIRE_ROOM)
+    actor.replace(MoveWithinSiteAction, FIRE_ROOM)
     await system.execute()
 
     assert actor.get(ActorComponent).current_stage == FIRE_ROOM
@@ -251,9 +251,9 @@ async def test_move_within_goes_back_to_the_parent_area() -> None:
     game = build_world()
     actor = entity(game, OTHER)
     actor.replace(ActorComponent, FIRE_ROOM)
-    system = _system(ActorMoveWithinSiteSystem, game)
+    system = _system(MoveWithinSiteSystem, game)
 
-    actor.replace(ActorMoveWithinSiteAction, CAMP)
+    actor.replace(MoveWithinSiteAction, CAMP)
     await system.execute()
 
     assert actor.get(ActorComponent).current_stage == CAMP
@@ -263,9 +263,9 @@ async def test_move_within_cannot_leave_the_site() -> None:
     """去另一个地点不是区域内移动：那是先离开地点、再上路的组合。"""
     game = build_world()
     actor = entity(game, HERE)
-    system = _system(ActorMoveWithinSiteSystem, game)
+    system = _system(MoveWithinSiteSystem, game)
 
-    actor.replace(ActorMoveWithinSiteAction, TOWER)
+    actor.replace(MoveWithinSiteAction, TOWER)
     await system.execute()
 
     assert actor.get(ActorComponent).current_stage == CAMP
@@ -275,9 +275,9 @@ async def test_move_within_cannot_leave_the_site() -> None:
 async def test_move_within_requires_being_inside_a_site() -> None:
     game = build_world()
     actor = entity(game, WANDERER)
-    system = _system(ActorMoveWithinSiteSystem, game)
+    system = _system(MoveWithinSiteSystem, game)
 
-    actor.replace(ActorMoveWithinSiteAction, CAMP)
+    actor.replace(MoveWithinSiteAction, CAMP)
     await system.execute()
 
     assert actor.get(ActorComponent).current_stage == MAP
@@ -291,11 +291,11 @@ async def test_replacing_the_action_triggers_again() -> None:
     """ActorComponent 早就在了，更新动作也会再触发一次。"""
     game = build_world()
     actor = entity(game, WANDERER)
-    system = _system(ActorTravelSystem, game)
+    system = _system(TravelSystem, game)
 
-    actor.replace(ActorTravelAction, 1, 2)
+    actor.replace(TravelAction, 1, 2)
     await system.execute()
-    actor.replace(ActorTravelAction, 2, 2)
+    actor.replace(TravelAction, 2, 2)
     await system.execute()
 
     position = actor.get(MapPositionComponent)
@@ -306,8 +306,8 @@ async def test_action_mounted_before_activation_is_not_collected() -> None:
     """先挂动作再开收集器，这次变更不会进来——动作只活一次 pass 的前提。"""
     game = build_world()
     actor = entity(game, WANDERER)
-    actor.replace(ActorTravelAction, 1, 2)
-    system = _system(ActorTravelSystem, game)
+    actor.replace(TravelAction, 1, 2)
+    system = _system(TravelSystem, game)
 
     await system.execute()
 

@@ -21,13 +21,13 @@ from ...entitas.components import Component
 from ...llm import ToolDefinition, ToolFunction
 from ...models import (
     ActorComponent,
-    ActorExitSiteAction,
-    ActorMoveWithinSiteAction,
-    ActorPlanAction,
-    ActorSpeakAction,
-    ActorWaitAction,
     AppearanceComponent,
     EnvironmentComponent,
+    ExitSiteAction,
+    MoveWithinSiteAction,
+    PlanAction,
+    SpeakAction,
+    WaitAction,
 )
 from ...utils import prompt_builder
 from ..context import SRPGGame
@@ -37,7 +37,7 @@ from ..entities.queries import (
     is_on_map,
     resolve_stage_entity,
 )
-from .actor_plan_mixin import ActorPlanMixin
+from .plan_mixin import PlanMixin
 
 _NO_ENVIRONMENT: Final[str] = "（暂无环境描述）"
 
@@ -93,10 +93,10 @@ _SITE_TOOLS: Final[List[ToolDefinition]] = [
 ]
 
 _SITE_ACTIONS: Final[Tuple[Type[Component], ...]] = (
-    ActorSpeakAction,
-    ActorMoveWithinSiteAction,
-    ActorExitSiteAction,
-    ActorWaitAction,
+    SpeakAction,
+    MoveWithinSiteAction,
+    ExitSiteAction,
+    WaitAction,
 )
 
 
@@ -140,24 +140,24 @@ def site_plan_prompt(
 
 ############################################################################################################
 @final
-class SitePlanSystem(ReactiveProcessor, ActorPlanMixin):
-    """消费 ``ActorPlanAction``：给地点里的角色跑一轮计划。"""
+class SitePlanSystem(ReactiveProcessor, PlanMixin):
+    """消费 ``PlanAction``：给地点里的角色跑一轮计划。"""
 
     ##########################################################################################
     def __init__(self, game: SRPGGame) -> None:
         ReactiveProcessor.__init__(self, game)
-        ActorPlanMixin.__init__(self, game)
+        PlanMixin.__init__(self, game)
 
     ##########################################################################################
     @override
     def get_trigger(self) -> Dict[Matcher, GroupEvent]:
-        return {Matcher(all_of=[ActorPlanAction, ActorComponent]): GroupEvent.ADDED}
+        return {Matcher(all_of=[PlanAction, ActorComponent]): GroupEvent.ADDED}
 
     ##########################################################################################
     @override
     def filter(self, entity: Entity) -> bool:
         """只处理仍在地点里、且挂着计划动作的角色。"""
-        return entity.has(ActorComponent, ActorPlanAction) and not is_on_map(
+        return entity.has(ActorComponent, PlanAction) and not is_on_map(
             self._game, entity
         )
 
@@ -171,7 +171,7 @@ class SitePlanSystem(ReactiveProcessor, ActorPlanMixin):
     async def react(self, entities: List[Entity]) -> None:
         for entity in sorted(entities, key=lambda item: item.index):
             # 「该想一次」在处理的同一刻被消费；行为动作留给后面的 system
-            entity.remove(ActorPlanAction)
+            entity.remove(PlanAction)
             record_message = site_plan_input(self._game, entity, compact=True)
             decided = self.predecided_action(entity)
             if decided is not None:
@@ -191,14 +191,12 @@ class SitePlanSystem(ReactiveProcessor, ActorPlanMixin):
         self, entity: Entity
     ) -> Dict[str, Callable[..., Union[str, Awaitable[str]]]]:
         return {
-            "speak": lambda content: self.mount_action(
-                entity, ActorSpeakAction, content
-            ),
+            "speak": lambda content: self.mount_action(entity, SpeakAction, content),
             "move_within": lambda destination: self.mount_action(
-                entity, ActorMoveWithinSiteAction, destination
+                entity, MoveWithinSiteAction, destination
             ),
-            "exit": lambda: self.mount_action(entity, ActorExitSiteAction),
-            "wait": lambda: self.mount_action(entity, ActorWaitAction),
+            "exit": lambda: self.mount_action(entity, ExitSiteAction),
+            "wait": lambda: self.mount_action(entity, WaitAction),
         }
 
 

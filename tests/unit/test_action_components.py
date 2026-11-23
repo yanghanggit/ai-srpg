@@ -8,16 +8,16 @@ from ai_srpg.entitas.components import Component
 from ai_srpg.models import (
     ACTION_COMPONENT_TYPES,
     COMPONENT_TYPES,
-    ActorEnterSiteAction,
-    ActorExitSiteAction,
-    ActorMoveWithinSiteAction,
-    ActorPlanAction,
-    ActorSpeakAction,
-    ActorTravelAction,
-    ActorWaitAction,
-    CompactMemoryAction,
+    CompactAction,
+    EnterSiteAction,
+    ExitSiteAction,
+    MoveWithinSiteAction,
+    PlanAction,
     RefreshAppearanceAction,
     RefreshEnvironmentAction,
+    SpeakAction,
+    TravelAction,
+    WaitAction,
     register_action_component_type,
     register_component_type,
 )
@@ -39,23 +39,23 @@ def isolated_registries() -> Iterator[None]:
 
 #: 全部动作；新增动作只改这一处
 PRODUCTION_ACTIONS = [
-    ActorPlanAction,
-    ActorSpeakAction,
-    ActorTravelAction,
-    ActorEnterSiteAction,
-    ActorExitSiteAction,
-    ActorMoveWithinSiteAction,
-    ActorWaitAction,
+    PlanAction,
+    SpeakAction,
+    TravelAction,
+    EnterSiteAction,
+    ExitSiteAction,
+    MoveWithinSiteAction,
+    WaitAction,
     RefreshAppearanceAction,
     RefreshEnvironmentAction,
-    CompactMemoryAction,
+    CompactAction,
 ]
 
 #: 不带参数的动作：只声明「这轮做这件事」
 FIELDLESS_ACTIONS = [
-    ActorPlanAction,
-    ActorWaitAction,
-    ActorExitSiteAction,
+    PlanAction,
+    WaitAction,
+    ExitSiteAction,
     RefreshAppearanceAction,
     RefreshEnvironmentAction,
 ]

@@ -31,11 +31,11 @@ from ..game.memory_dump import dump_memories
 from ..game.offline import create_game_from_blueprint, restore_game_from_snapshot
 from ..models import (
     ActorComponent,
-    ActorPlanAction,
     ActorSummary,
     GameSnapshot,
     GameSnapshotInfo,
     GameSummary,
+    PlanAction,
 )
 from ..paths import MEMORY_DUMPS_DIR
 from ..pgsql import (
@@ -262,7 +262,7 @@ async def plan_actors(
     game = await load_required_game(room_id, game_name, snapshot_id=snapshot_id)
     actors = _require_actors(game, actor_names)
     for actor in actors:
-        actor.replace(ActorPlanAction)
+        actor.replace(PlanAction)
     outcome = await run_offline_pass(game, room_id)
     return PlanOutcome(
         actors=[actor.name for actor in actors],

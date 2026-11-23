@@ -34,12 +34,12 @@ from ai_srpg.gameplay.offline import GameAlreadyExistsError, OfflinePassFailed
 from ai_srpg.llm.call_context import llm_call_trace
 from ai_srpg.llm.call_records import find_llm_call, iter_llm_call_records
 from ai_srpg.models import (
-    ActorEnterSiteAction,
-    ActorExitSiteAction,
-    ActorMoveWithinSiteAction,
-    ActorSpeakAction,
-    ActorTravelAction,
-    ActorWaitAction,
+    EnterSiteAction,
+    ExitSiteAction,
+    MoveWithinSiteAction,
+    SpeakAction,
+    TravelAction,
+    WaitAction,
 )
 from ai_srpg.paths import LOGS_DIR
 from ai_srpg.srpg_game_agent.compact import compact_context_game
@@ -613,17 +613,17 @@ def _build_action(
             )
         )
     if speak is not None:
-        return ActorSpeakAction(content=speak)
+        return SpeakAction(content=speak)
     if travel is not None:
         x, y = _parse_cell(travel)
-        return ActorTravelAction(x=x, y=y)
+        return TravelAction(x=x, y=y)
     if enter_site is not None:
-        return ActorEnterSiteAction(site=enter_site)
+        return EnterSiteAction(site=enter_site)
     if exit_site:
-        return ActorExitSiteAction()
+        return ExitSiteAction()
     if move_within is not None:
-        return ActorMoveWithinSiteAction(destination=move_within)
-    return ActorWaitAction()
+        return MoveWithinSiteAction(destination=move_within)
+    return WaitAction()
 
 
 ###############################################################################

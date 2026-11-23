@@ -10,9 +10,9 @@ from typing import Optional, Tuple
 from ..entitas import Entity
 from ..game.context import SRPGGame
 from ..game.memory import get_agent_memory
-from ..game.systems.compact_memory_system import DEFAULT_COMPACT_SUMMARY
+from ..game.systems.compact_system import DEFAULT_COMPACT_SUMMARY
 from ..gameplay.offline import load_or_create_game, run_offline_pass
-from ..models import CompactMemoryAction, SystemMessage
+from ..models import CompactAction, SystemMessage
 
 
 @dataclass(frozen=True)
@@ -42,7 +42,7 @@ async def compact_context_game(
     _require_compactable(srpg_game, entity)
 
     before_messages, before_ratio = _size(srpg_game, entity)
-    entity.replace(CompactMemoryAction, summary)
+    entity.replace(CompactAction, summary)
     outcome = await run_offline_pass(srpg_game, user)
     after_messages, after_ratio = _size(srpg_game, entity)
     return CompactContextOutcome(

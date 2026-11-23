@@ -150,7 +150,7 @@ def test_cli_offline_flow(
     )
     assert acted.exit_code == 0, acted.output
     assert f"actor:     {actor}" in acted.output
-    assert "action:    ActorWait" in acted.output
+    assert "action:    Wait" in acted.output
     assert f"where:     " in acted.output
     assert "snapshot:" in acted.output
 

@@ -7,32 +7,32 @@ from pydantic import TypeAdapter, ValidationError
 
 from ai_srpg.game.context import SRPGGame
 from ai_srpg.game.events.sink import RecordingEventSink
-from ai_srpg.game.systems.actor_enter_site_system import ActorEnterSiteSystem
-from ai_srpg.game.systems.actor_exit_site_system import ActorExitSiteSystem
-from ai_srpg.game.systems.actor_move_within_site_system import (
-    ActorMoveWithinSiteSystem,
+from ai_srpg.game.systems.enter_site_system import EnterSiteSystem
+from ai_srpg.game.systems.exit_site_system import ExitSiteSystem
+from ai_srpg.game.systems.move_within_site_system import (
+    MoveWithinSiteSystem,
 )
-from ai_srpg.game.systems.actor_speak_system import ActorSpeakSystem
-from ai_srpg.game.systems.actor_travel_system import ActorTravelSystem
-from ai_srpg.game.systems.actor_wait_system import ActorWaitSystem
+from ai_srpg.game.systems.speak_system import SpeakSystem
 from ai_srpg.game.systems.stage_pulse_system import StagePulseSystem
+from ai_srpg.game.systems.travel_system import TravelSystem
+from ai_srpg.game.systems.wait_system import WaitSystem
 from ai_srpg.models import (
     ActorEnteredSite,
-    ActorEnterSiteAction,
     ActorExitedSite,
-    ActorExitSiteAction,
     ActorMovedWithinSite,
-    ActorMoveWithinSiteAction,
-    ActorSpeakAction,
     ActorSpoke,
-    ActorTravelAction,
     ActorTraveled,
-    ActorWaitAction,
     ActorWaited,
     AnyAgentEvent,
+    EnterSiteAction,
+    ExitSiteAction,
     MapPositionComponent,
+    MoveWithinSiteAction,
     NoneEvent,
+    SpeakAction,
     StagePulse,
+    TravelAction,
+    WaitAction,
 )
 from world_fixture import (
     CAMP,
@@ -110,8 +110,8 @@ def test_unknown_field_is_rejected() -> None:
 ###############################################################################
 async def test_speak_publishes_what_was_said() -> None:
     game, sink = _world()
-    system = _activate(game, ActorSpeakSystem)
-    entity(game, HERE).replace(ActorSpeakAction, "风变了。")
+    system = _activate(game, SpeakSystem)
+    entity(game, HERE).replace(SpeakAction, "风变了。")
     await system.execute()
 
     (event,) = sink.events
@@ -123,9 +123,9 @@ async def test_speak_publishes_what_was_said() -> None:
 async def test_travel_publishes_once_but_tells_three_places() -> None:
     """旧处、新处、自己各听到一句，但那只发生过一件事。"""
     game, sink = _world()
-    system = _activate(game, ActorTravelSystem)
+    system = _activate(game, TravelSystem)
 
-    entity(game, WANDERER).replace(ActorTravelAction, 1, 2)
+    entity(game, WANDERER).replace(TravelAction, 1, 2)
     await system.execute()
 
     (event,) = sink.events
@@ -145,9 +145,9 @@ async def test_enter_publishes_the_site_it_entered() -> None:
     game, sink = _world()
     actor = entity(game, WANDERER)
     actor.replace(MapPositionComponent, 2, 2)
-    system = _activate(game, ActorEnterSiteSystem)
+    system = _activate(game, EnterSiteSystem)
 
-    actor.replace(ActorEnterSiteAction, CAMP)
+    actor.replace(EnterSiteAction, CAMP)
     await system.execute()
 
     (event,) = sink.events
@@ -158,9 +158,9 @@ async def test_enter_publishes_the_site_it_entered() -> None:
 
 async def test_exit_publishes_the_site_it_left() -> None:
     game, sink = _world()
-    system = _activate(game, ActorExitSiteSystem)
+    system = _activate(game, ExitSiteSystem)
 
-    entity(game, HERE).replace(ActorExitSiteAction)
+    entity(game, HERE).replace(ExitSiteAction)
     await system.execute()
 
     (event,) = sink.events
@@ -170,9 +170,9 @@ async def test_exit_publishes_the_site_it_left() -> None:
 
 async def test_move_within_publishes_destination_and_site() -> None:
     game, sink = _world()
-    system = _activate(game, ActorMoveWithinSiteSystem)
+    system = _activate(game, MoveWithinSiteSystem)
 
-    entity(game, HERE).replace(ActorMoveWithinSiteAction, FIRE_ROOM)
+    entity(game, HERE).replace(MoveWithinSiteAction, FIRE_ROOM)
     await system.execute()
 
     (event,) = sink.events
@@ -182,9 +182,9 @@ async def test_move_within_publishes_destination_and_site() -> None:
 
 async def test_wait_inside_a_site_publishes_and_tells_others() -> None:
     game, sink = _world()
-    system = _activate(game, ActorWaitSystem)
+    system = _activate(game, WaitSystem)
 
-    entity(game, HERE).replace(ActorWaitAction)
+    entity(game, HERE).replace(WaitAction)
     await system.execute()
 
     (event,) = sink.events
@@ -196,9 +196,9 @@ async def test_wait_inside_a_site_publishes_and_tells_others() -> None:
 async def test_wait_on_the_map_publishes_but_tells_nobody() -> None:
     """大地图上没有听众，但「这轮没动」仍是发生过的事。"""
     game, sink = _world()
-    system = _activate(game, ActorWaitSystem)
+    system = _activate(game, WaitSystem)
 
-    entity(game, WANDERER).replace(ActorWaitAction)
+    entity(game, WANDERER).replace(WaitAction)
     await system.execute()
 
     (event,) = sink.events
@@ -230,9 +230,9 @@ async def test_pulse_publishes_who_is_present() -> None:
 ###############################################################################
 async def test_rejected_action_publishes_nothing() -> None:
     game, sink = _world()
-    system = _activate(game, ActorTravelSystem)
+    system = _activate(game, TravelSystem)
 
-    entity(game, WANDERER).replace(ActorTravelAction, 4, 4)  # 不相邻
+    entity(game, WANDERER).replace(TravelAction, 4, 4)  # 不相邻
     await system.execute()
 
     assert sink.events == []
