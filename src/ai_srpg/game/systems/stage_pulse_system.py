@@ -33,5 +33,5 @@ class StagePulseSystem(StageBroadcastMixin, ExecuteProcessor):
                 stage=stage_entity.name,
                 actors=tuple(names),
             )
-            self.broadcast_at_stage(stage_entity, event)
+            self.broadcast_in_region(stage_entity, event)
             self.publish(event)

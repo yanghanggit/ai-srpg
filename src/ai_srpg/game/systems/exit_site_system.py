@@ -16,7 +16,12 @@ from ...models import (
 )
 from ..context import SRPGGame
 from ..entities.action_rules import action_blocker
-from ..entities.queries import get_map_position, get_map_stage, get_site
+from ..entities.queries import (
+    get_map_position,
+    get_map_stage,
+    get_site,
+    resolve_stage_entity,
+)
 from .location_change_mixin import LocationChangeMixin
 
 
@@ -57,6 +62,8 @@ class ExitSiteSystem(ReactiveProcessor, LocationChangeMixin):
 
         site = get_site(self._game, entity)
         assert site is not None, f"{entity.name} 在地点里却没有地点"
+        from_stage = resolve_stage_entity(self._game, entity)
+        assert from_stage is not None, f"{entity.name} 无所在舞台"
         map_stage = get_map_stage(self._game, site.name)
         _, position = get_map_position(self._game, entity)
 
@@ -68,7 +75,10 @@ class ExitSiteSystem(ReactiveProcessor, LocationChangeMixin):
             site=site.name,
         )
         self.announce_departure(
-            entity, stage=site, from_label=site.name, agent_event=event
+            entity,
+            stage=from_stage,
+            from_label=from_stage.name,
+            agent_event=event,
         )
 
         entity.replace(ActorComponent, map_stage.name)

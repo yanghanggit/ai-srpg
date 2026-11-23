@@ -11,6 +11,7 @@ from ...models import (
     MapPosition,
     MapPositionComponent,
     PlayerComponent,
+    SiteComponent,
     StageComponent,
     WorldComponent,
 )
@@ -46,6 +47,29 @@ def get_actors_in_stage(
         ret.add(candidate_entity)
 
     return ret
+
+
+def get_actors_in_map_cell(srpg_game: SRPGGame, entity: Entity) -> Set[Entity]:
+    """与 entity 在同一大地图格的 Actor；entity 必须站在大地图上。"""
+    stage_entity = resolve_stage_entity(srpg_game, entity)
+    assert stage_entity is not None, f"{entity.name} 无所在舞台"
+    assert is_map_stage(stage_entity), f"{entity.name} 不在大地图上"
+    assert entity.has(MapPositionComponent), f"{entity.name} 没有大地图坐标"
+    position = entity.get(MapPositionComponent)
+
+    return {
+        actor
+        for actor in get_actors_in_stage(srpg_game, stage_entity)
+        if actor.has(MapPositionComponent)
+        and (actor.get(MapPositionComponent).x, actor.get(MapPositionComponent).y)
+        == (position.x, position.y)
+    }
+
+
+def get_sites(srpg_game: SRPGGame) -> List[Entity]:
+    """所有地点实体，按创建顺序（即蓝图中声明的先后）。"""
+    sites = srpg_game.get_group(Matcher(all_of=[SiteComponent])).entities
+    return sorted(sites, key=lambda entity: entity.index)
 
 
 def get_actors_by_stage(srpg_game: SRPGGame) -> Dict[Entity, List[Entity]]:
@@ -143,19 +167,23 @@ def get_site(srpg_game: SRPGGame, entity: Entity) -> Optional[Entity]:
     """实体所属的地点：大地图的直接子舞台，对外只占一格。
 
     站在大地图上返回 ``None``；无论在里面走到多深，返回的都是同一个地点。
+    地点由 ``SiteComponent`` 标记；它必须由装配期派生，不能靠父链猜出来。
     """
     stage_entity = resolve_stage_entity(srpg_game, entity)
     assert stage_entity is not None, f"{entity.name} 无所在舞台"
     if is_map_stage(stage_entity):
         return None
+
     node = stage_entity
     while True:
+        if node.has(SiteComponent):
+            return node
         parent_name = node.get(StageComponent).parent_stage
         assert parent_name is not None, f"{node.name} 不在任何大地图之下"
         parent = get_stage_entity(srpg_game, parent_name)
         assert parent is not None, f"{node.name} 的父舞台不存在: {parent_name}"
         if is_map_stage(parent):
-            return node
+            assert False, f"{node.name} 是大地图的直接子舞台，但缺少 SiteComponent"
         node = parent
 
 
@@ -185,6 +213,9 @@ def get_visible_cells(srpg_game: SRPGGame, entity: Entity) -> List[MapCell]:
 
     by_cell: Dict[Tuple[int, int], Dict[str, object]] = {}
     for child in get_child_stages(srpg_game, map_stage.name):
+        assert child.has(
+            SiteComponent
+        ), f"{child.name} 是大地图的直接子舞台，但缺少 SiteComponent"
         if not child.has(MapPositionComponent):
             continue
         child_position = child.get(MapPositionComponent)
@@ -242,6 +273,9 @@ def get_site_at_cell(
 ) -> Optional[Entity]:
     """某一格上的地点；空地上没有地点。"""
     for child in get_child_stages(srpg_game, map_stage.name):
+        assert child.has(
+            SiteComponent
+        ), f"{child.name} 是大地图的直接子舞台，但缺少 SiteComponent"
         if not child.has(MapPositionComponent):
             continue
         child_position = child.get(MapPositionComponent)

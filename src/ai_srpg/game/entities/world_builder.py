@@ -17,6 +17,7 @@ from ...models import (
     GridComponent,
     IdentityComponent,
     MapPositionComponent,
+    SiteComponent,
     StageBlueprint,
     StageComponent,
     SystemMessage,
@@ -96,6 +97,10 @@ def _create_stage_tree(srpg_game: SRPGGame, root: StageBlueprint) -> None:
     occupied: Dict[str, Set[Tuple[int, int]]] = {}
 
     for stage, parent_name in walk_stages(root):
+        assert (
+            SiteComponent.__name__ not in stage.components
+        ), f"SiteComponent 由装配期按树位置派生，蓝图不要声明: {stage.name}"
+
         entity = _create_entity(
             srpg_game,
             stage,
@@ -103,6 +108,9 @@ def _create_stage_tree(srpg_game: SRPGGame, root: StageBlueprint) -> None:
             "舞台",
             derived={StageComponent.__name__: {"parent_stage": parent_name}},
         )
+        if parent_name == root.name:
+            # 地点不是内容声明的类型，而是树上的位置：大地图的直接子舞台。
+            entity.add(SiteComponent)
         if stage.map_position is not None:
             entity.set(
                 MapPositionComponent,

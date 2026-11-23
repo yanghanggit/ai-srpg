@@ -12,10 +12,16 @@ from ai_srpg.game.entities.queries import (
     get_map_stage,
     get_site,
     get_site_at_cell,
+    get_sites,
     get_visible_cells,
     is_map_stage,
 )
-from ai_srpg.models import ActorComponent, MapPosition, MapPositionComponent
+from ai_srpg.models import (
+    ActorComponent,
+    MapPosition,
+    MapPositionComponent,
+    SiteComponent,
+)
 from world_fixture import (
     CAMP,
     FIRE_ROOM,
@@ -72,6 +78,17 @@ def test_get_site_returns_the_direct_child_of_the_map() -> None:
 
     site = get_site(game, entity(game, HERE))
     assert site is not None and site.name == CAMP
+
+
+def test_get_sites_returns_marked_sites_in_creation_order() -> None:
+    game = build_world()
+
+    sites = get_sites(game)
+
+    assert [site.name for site in sites] == [CAMP, TOWER]
+    assert all(site.has(SiteComponent) for site in sites)
+    assert not entity(game, MAP).has(SiteComponent)
+    assert not entity(game, FIRE_ROOM).has(SiteComponent)
 
 
 def test_get_site_is_stable_at_every_depth_inside_the_site() -> None:

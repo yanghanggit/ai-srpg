@@ -6,7 +6,7 @@ Unit tests for game lifecycle/entity/memory/broadcast functions
   - destroy_entity（含 agent 记忆清理）
   - add_system_message
   - deliver_entities / publish_event
-  - StageBroadcastMixin.broadcast_at_stage
+  - StageBroadcastMixin.broadcast_in_region / broadcast_in_map_cell
   - exit / initialize（冒烟测试）
 """
 
@@ -33,7 +33,9 @@ from ai_srpg.models import (
     GridComponent,
     HumanMessage,
     IdentityComponent,
+    MapPositionComponent,
     NoneEvent,
+    SiteComponent,
     StageComponent,
     SystemMessage,
 )
@@ -56,6 +58,8 @@ def _make_stage(
         map_entity.add(GridComponent, 5, 5)
     entity: Entity = game.create_entity(stage_name)
     entity.add(StageComponent, parent_stage)
+    if parent_stage is not None:
+        entity.add(SiteComponent)
     return entity
 
 
@@ -240,18 +244,18 @@ class TestDeliverEntities:
 
 
 # ---------------------------------------------------------------------------
-# broadcast_at_stage
+# broadcast_in_region / broadcast_in_map_cell
 # ---------------------------------------------------------------------------
 
 
-class TestBroadcastToStage:
+class TestBroadcastToRegion:
     def test_broadcast_reaches_stage_and_actors(self, game: Any) -> None:
         """广播时，舞台实体及其所有 actor 都收到消息。"""
         stage = _make_stage(game, "Stage_1")
         a1 = _make_actor(game, "NPC_1", "Stage_1")
         a2 = _make_actor(game, "NPC_2", "Stage_1")
 
-        StageBroadcastMixin(game).broadcast_at_stage(stage, _agent_event("stage msg"))
+        StageBroadcastMixin(game).broadcast_in_region(stage, _agent_event("stage msg"))
 
         assert get_agent_memory(game, stage).messages[-1].content == "stage msg"
         assert get_agent_memory(game, a1).messages[-1].content == "stage msg"
@@ -263,7 +267,7 @@ class TestBroadcastToStage:
         a1 = _make_actor(game, "NPC_3", "Stage_2")
         a2 = _make_actor(game, "NPC_4", "Stage_2")
 
-        StageBroadcastMixin(game).broadcast_at_stage(
+        StageBroadcastMixin(game).broadcast_in_region(
             stage, _agent_event("exclusive"), exclude_entities={a2}
         )
 
@@ -278,7 +282,7 @@ class TestBroadcastToStage:
         other_stage = _make_stage(game, "Stage_other")  # must exist for actor resolve
         unrelated_actor = _make_actor(game, "NPC_5", "Stage_other")
 
-        StageBroadcastMixin(game).broadcast_at_stage(
+        StageBroadcastMixin(game).broadcast_in_region(
             stage, _agent_event("empty stage msg")
         )
 
@@ -291,7 +295,7 @@ class TestBroadcastToStage:
         actor = _make_actor(game, "NPC_6", "Stage_4")
         event = NoneEvent(message="喊了一声")
 
-        StageBroadcastMixin(game).broadcast_at_stage(actor, event)
+        StageBroadcastMixin(game).broadcast_in_region(actor, event)
 
         for entity in (stage, actor):
             message: Any = get_agent_memory(game, entity).messages[-1]
@@ -302,23 +306,30 @@ class TestBroadcastToStage:
         """传入没有 StageComponent 也没有 ActorComponent 的实体触发 AssertionError。"""
         plain_entity = game.create_entity("PlainEntity")
         with pytest.raises(AssertionError, match="无法解析 Stage 实体"):
-            StageBroadcastMixin(game).broadcast_at_stage(
+            StageBroadcastMixin(game).broadcast_in_region(
                 plain_entity, _agent_event("fail")
             )
 
-    def test_broadcast_to_map_reaches_only_the_map(self, game: Any) -> None:
-        """大地图没有「在场者」：投递只记在大地图自己身上。"""
+    def test_map_cell_broadcast_reaches_only_same_cell(self, game: Any) -> None:
+        """大地图按格广播：同格 actor 收到，地图实体与邻格 actor 不收到。"""
         map_stage = game.create_entity("Stage_map")
         map_stage.add(StageComponent, None)
         map_stage.add(GridComponent, 5, 5)
         wanderer = _make_actor(game, "NPC_map", "Stage_map")
+        wanderer.add(MapPositionComponent, 1, 1)
+        same_cell = _make_actor(game, "NPC_same_cell", "Stage_map")
+        same_cell.add(MapPositionComponent, 1, 1)
+        other_cell = _make_actor(game, "NPC_other_cell", "Stage_map")
+        other_cell.add(MapPositionComponent, 2, 2)
 
-        StageBroadcastMixin(game).broadcast_at_stage(
-            map_stage, _agent_event("map wide")
+        StageBroadcastMixin(game).broadcast_in_map_cell(
+            wanderer, _agent_event("cell wide")
         )
 
-        assert get_agent_memory(game, map_stage).messages[-1].content == "map wide"
-        assert get_agent_memory(game, wanderer).messages == []
+        assert get_agent_memory(game, wanderer).messages[-1].content == "cell wide"
+        assert get_agent_memory(game, same_cell).messages[-1].content == "cell wide"
+        assert get_agent_memory(game, other_cell).messages == []
+        assert get_agent_memory(game, map_stage).messages == []
 
 
 # ---------------------------------------------------------------------------

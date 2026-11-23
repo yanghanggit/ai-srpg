@@ -1,11 +1,13 @@
 """位置变化的告知：旧处看见他走、新处看见他来、他自己记得这条路线。
 
 调用顺序即语义：离开按「此刻所在处」投递，必须在改组件之前发；到达按「新的所在处」，
-之后发。大地图与地点的投递对象不同——大地图只记在自己身上。
+之后发。大地图与地点的投递对象不同——大地图只投给同格的其他角色。
 
 三处听到的说法不同，但它们是同一件事：所以传进来的是那条领域事件，这里只把它的
 说法换成该听众该听到的那一版。事件本身由调用方发布一次。
 """
+
+from typing import Set
 
 from ...entitas import Entity
 from ...models import AnyAgentEvent, HumanMessage
@@ -26,10 +28,14 @@ class LocationChangeMixin(StageBroadcastMixin):
         from_label: str,
         agent_event: AnyAgentEvent,
     ) -> None:
-        """旧处的在场者看见他离开；调用时角色还在原地。"""
-        self.broadcast_at_stage(
-            stage,
-            _saying(agent_event, f"{entity.name}离开了{from_label}。"),
+        """旧处的在场者看见他离开；调用时角色还在原地。
+
+        地点内按当前区域广播；大地图上按旧格广播。
+        """
+        self._broadcast_location(
+            entity,
+            stage=stage,
+            agent_event=_saying(agent_event, f"{entity.name}离开了{from_label}。"),
             exclude_entities={entity},
         )
 
@@ -42,12 +48,35 @@ class LocationChangeMixin(StageBroadcastMixin):
         to_label: str,
         agent_event: AnyAgentEvent,
     ) -> None:
-        """新处的在场者看见他到来；调用时组件已经改好。"""
-        self.broadcast_at_stage(
-            stage,
-            _saying(agent_event, f"{entity.name}来到了{to_label}。"),
+        """新处的在场者看见他到来；调用时组件已经改好。
+
+        地点内按新区域广播；大地图上按新格广播。
+        """
+        self._broadcast_location(
+            entity,
+            stage=stage,
+            agent_event=_saying(agent_event, f"{entity.name}来到了{to_label}。"),
             exclude_entities={entity},
         )
+
+    ############################################################################################################
+    def _broadcast_location(
+        self,
+        entity: Entity,
+        *,
+        stage: Entity,
+        agent_event: AnyAgentEvent,
+        exclude_entities: Set[Entity],
+    ) -> None:
+        """按位置类型选择广播范围：地点内按区域，大地图上按格。"""
+        if is_map_stage(stage):
+            self.broadcast_in_map_cell(
+                entity, agent_event, exclude_entities=exclude_entities
+            )
+        else:
+            self.broadcast_in_region(
+                stage, agent_event, exclude_entities=exclude_entities
+            )
 
     ############################################################################################################
     def record_journey(

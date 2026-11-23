@@ -1,7 +1,7 @@
 """六个行为系统：说话、等待、大地图移动、进入地点、离开地点、区域内移动。
 
 每个动词只在它所属的层生效：说话与离开地点在地点里，大地图移动与进入地点在大地图上，区域内移动
-在地点内部，等待在两层都可用（大地图上没有可告知的对象）。
+在地点内部，等待在两层都可用。广播只到当前区域或同一大地图格。
 """
 
 from typing import Type, TypeVar
@@ -121,10 +121,8 @@ async def test_travel_moves_one_cell_on_the_map() -> None:
     assert (position.x, position.y) == (1, 2)
     assert actor.get(ActorComponent).current_stage == MAP
     assert said(game, WANDERER) == [f"你从{MAP}(1,1)走到{MAP}(1,2)。"]
-    assert heard(game, MAP) == [
-        f"{WANDERER}离开了{MAP}(1,1)。",
-        f"{WANDERER}来到了{MAP}(1,2)。",
-    ]
+    # 旧格与新格都没有其他 actor：地图移动不广播给地图实体
+    assert heard(game, MAP) == []
 
 
 async def test_travel_can_stop_on_a_site_cell() -> None:
@@ -181,8 +179,8 @@ async def test_enter_requires_standing_on_the_site_cell() -> None:
 
     assert actor.get(ActorComponent).current_stage == CAMP
     assert not actor.has(MapPositionComponent)
-    # 离开发生在大地图上：只有大地图记下；地点里的人只看见他进来
-    assert heard(game, MAP) == [f"{WANDERER}离开了{MAP}(2,2)。"]
+    # 离开发生在旧地图格：旧格没有其他 actor；地点里的人只看见他进来
+    assert heard(game, MAP) == []
     assert heard(game, OTHER) == [f"{WANDERER}来到了{CAMP}。"]
     assert said(game, WANDERER) == [f"你从{MAP}(2,2)走到{CAMP}。"]
 
@@ -211,7 +209,8 @@ async def test_exit_lands_on_the_site_cell() -> None:
     position = actor.get(MapPositionComponent)
     assert (position.x, position.y) == (2, 2)
     assert heard(game, OTHER) == [f"{HERE}离开了{CAMP}。"]
-    assert heard(game, MAP) == [f"{HERE}来到了{MAP}(2,2)。"]
+    # 到达的新地图格没有其他 actor：不广播给地图实体
+    assert heard(game, MAP) == []
     assert said(game, HERE) == [f"你从{CAMP}走到{MAP}(2,2)。"]
 
 

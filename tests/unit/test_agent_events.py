@@ -120,8 +120,8 @@ async def test_speak_publishes_what_was_said() -> None:
     assert _tags(game, OTHER) == ["actor_spoke"]
 
 
-async def test_travel_publishes_once_but_tells_three_places() -> None:
-    """旧处、新处、自己各听到一句，但那只发生过一件事。"""
+async def test_travel_publishes_once_and_only_tells_the_journey() -> None:
+    """同格没有其他 actor，地图移动不广播；他自己另有一句路程记录。"""
     game, sink = _world()
     system = _activate(game, TravelSystem)
 
@@ -136,8 +136,8 @@ async def test_travel_publishes_once_but_tells_three_places() -> None:
         1,
         2,
     )
-    # 大地图上只有大地图自己听见；他自己另有一句路程记录
-    assert _tags(game, MAP) == ["actor_traveled", "actor_traveled"]
+    # 旧格与新格都没有其他 actor；他自己另有一句路程记录
+    assert _tags(game, MAP) == []
     assert _tags(game, WANDERER) == ["actor_traveled"]
 
 

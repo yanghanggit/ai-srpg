@@ -24,6 +24,7 @@ from ai_srpg.models import (
     GridComponent,
     MapPosition,
     MapPositionComponent,
+    SiteComponent,
     StageBlueprint,
     StageComponent,
     WorldBlueprint,
@@ -208,8 +209,38 @@ def test_stage_tree_sets_parent_and_map_position() -> None:
     assert map_stage.get(StageComponent).parent_stage is None
     assert map_stage.get(GridComponent).width == 5
     assert camp.get(StageComponent).parent_stage == "舞台.大地图"
+    assert not map_stage.has(SiteComponent)
+    assert camp.has(SiteComponent)
     position = camp.get(MapPositionComponent)
     assert (position.x, position.y) == (2, 2)
+
+
+###############################################################################
+def test_site_marker_is_derived_from_tree_position() -> None:
+    """地点是树上的位置：大地图直接子舞台有标记，地点内部的区域没有。"""
+    game = create_srpg_game(name="BuildTest")
+    camp = _camp(MapPosition(x=2, y=2))
+    camp.children = [_camp(name="舞台.铁匠铺")]
+    build_from_blueprint(game, _blueprint(root=_map_stage(children=[camp])))
+
+    camp_entity = get_stage_entity(game, "舞台.营地")
+    forge_entity = get_stage_entity(game, "舞台.铁匠铺")
+    assert camp_entity is not None and forge_entity is not None
+    assert camp_entity.has(SiteComponent)
+    assert not forge_entity.has(SiteComponent)
+
+
+###############################################################################
+def test_blueprint_must_not_declare_site_marker() -> None:
+    """地点标记由装配期派生；蓝图自己声明就是把结构关系写了两遍。"""
+    game = create_srpg_game(name="BuildTest")
+    camp = _camp(
+        MapPosition(x=2, y=2),
+    )
+    camp.components[SiteComponent.__name__] = {}
+
+    with pytest.raises(AssertionError, match="蓝图不要声明"):
+        build_from_blueprint(game, _blueprint(root=_map_stage(children=[camp])))
 
 
 ###############################################################################

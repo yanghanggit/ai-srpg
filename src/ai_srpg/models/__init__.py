@@ -64,6 +64,7 @@ from .components import (
     MapPositionComponent,
     NPCComponent,
     PlayerComponent,
+    SiteComponent,
     StageComponent,
     WorldComponent,
 )
@@ -162,6 +163,7 @@ __all__ = [
     "RefreshEnvironmentAction",
     "SNAPSHOT_FORMAT_VERSION",
     "SessionMessage",
+    "SiteComponent",
     "StageBlueprint",
     "StageComponent",
     "StagePulse",

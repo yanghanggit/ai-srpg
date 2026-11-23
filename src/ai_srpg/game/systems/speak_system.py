@@ -57,7 +57,7 @@ class SpeakSystem(ReactiveProcessor, StageBroadcastMixin):
                 site=site.name,
                 content=content,
             )
-            self.broadcast_at_stage(stage_entity, event, exclude_entities={entity})
+            self.broadcast_in_region(stage_entity, event, exclude_entities={entity})
             self.publish(event)
 
 

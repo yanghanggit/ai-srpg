@@ -18,6 +18,7 @@ from ai_srpg.models import (
     ActorComponent,
     GridComponent,
     SessionMessage,
+    SiteComponent,
     StageComponent,
 )
 from ai_srpg.session.job_context import reset_current_job, set_current_job
@@ -38,6 +39,8 @@ def _make_stage(
         map_entity.add(GridComponent, 5, 5)
     entity: Entity = game.create_entity(name)
     entity.add(StageComponent, parent_stage)
+    if parent_stage is not None:
+        entity.add(SiteComponent)
     return entity
 
 

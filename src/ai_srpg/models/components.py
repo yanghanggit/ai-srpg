@@ -41,6 +41,17 @@ class StageComponent(Component):
 ############################################################################################################
 @final
 @register_component_type
+class SiteComponent(Component):
+    """标记实体为地点：大地图的直接子舞台。
+
+    这是纯标记，不记录位置：地点占哪一格由 ``MapPositionComponent`` 回答。
+    它由装配期按舞台树位置派生，蓝图不声明；地点内部的区域没有这个标记。
+    """
+
+
+############################################################################################################
+@final
+@register_component_type
 class GridComponent(Component):
     """舞台的网格坐标系：左上角为原点，``x ∈ [0, width)``、``y ∈ [0, height)``。
 
@@ -143,6 +154,7 @@ __all__ = [
     "MapPositionComponent",
     "NPCComponent",
     "PlayerComponent",
+    "SiteComponent",
     "StageComponent",
     "WorldComponent",
 ]

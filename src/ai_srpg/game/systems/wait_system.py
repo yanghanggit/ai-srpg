@@ -49,7 +49,7 @@ class WaitSystem(ReactiveProcessor, StageBroadcastMixin):
             )
             if not is_on_map(self._game, entity):
                 # 大地图不是场所：没有可告知的对象，但「这轮没动」仍是发生过的事
-                self.broadcast_at_stage(stage_entity, event, exclude_entities={entity})
+                self.broadcast_in_region(stage_entity, event, exclude_entities={entity})
             self.publish(event)
 
 
